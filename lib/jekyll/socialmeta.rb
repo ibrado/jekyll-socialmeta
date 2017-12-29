@@ -1,6 +1,6 @@
 require "jekyll/socialmeta/version"
-require "socialmeta/screenshot"
-require "renderqueue"
+require "jekyll/socialmeta/screenshot"
+require "jekyll/socialmeta/renderqueue"
 require 'phantomjs'
 require 'fileutils'
 require 'uri'
@@ -50,7 +50,7 @@ module Jekyll
 
     def self.end_main
       runtime = "%.3f" % (Time.now - @start_main).to_f
-      if @screenshots.length > 0
+      if @screenshots.jobs > 0
         self.debug "Main runtime: #{runtime}s"
       else
         self.info "Total runtime: #{runtime}s"
@@ -70,7 +70,8 @@ module Jekyll
       @screenshots.finalize
       
       runtime = "%.3f" % (Time.now - @start_render).to_f
-      self.info "#{prerendered} images reused" if prerendered > 0
+      s = (prerendered == 1 ? '' : 's')
+      self.info "#{prerendered} image#{s} reused" if prerendered > 0
 
       self.info "Render time: #{runtime}s for #{count} URL(s)" if count > 0
       total_run = "%.3f" % (runtime.to_f + @main_runtime.to_f)
@@ -159,7 +160,7 @@ module Jekyll
             item.data[DATA_PROP] = {
               "hello" => "Hello,",
               "world" => "World!",
-              "meta" => meta
+              "tags" => meta
             }
 
             # Skip if source file is older than image

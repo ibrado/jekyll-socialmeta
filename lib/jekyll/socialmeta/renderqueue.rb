@@ -1,3 +1,5 @@
+require 'jekyll/socialmeta/screenshot'
+
 module Jekyll
   module SocialMeta
 
@@ -7,7 +9,7 @@ module Jekyll
         @render_queue = {}
         @renamed = []
 
-        Screenshot.setup(site, site.config['opengraph'])
+        Screenshot.setup(site, site.config['socialmeta'])
       end
 
       def enqueue(screenshot)

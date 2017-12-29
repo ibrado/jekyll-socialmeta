@@ -1,8 +1,8 @@
 require 'fastimage'
 
 module Jekyll
-  module OpenGraph
-    WORK_DIR ='.jekyll-opengraph'.freeze
+  module SocialMeta
+    WORK_DIR ='.jekyll-socialmeta'.freeze
 
     class Screenshot
       attr_reader :source, :url, :temp_path, :full_path, :live_path
@@ -18,7 +18,7 @@ module Jekyll
           image_path_prefix = File.join('assets', 'images')
         end
 
-        images_path = File.join(image_path_prefix, 'opengraph')
+        images_path = File.join(image_path_prefix, 'socialmeta')
 
         @@temp_dir = File.join(Dir.home(), WORK_DIR, 'screenshots', images_path)
         @@source_dir = File.join(site.source, images_path)
@@ -38,9 +38,9 @@ module Jekyll
         pwd = Pathname.new(File.dirname(__FILE__))
         @@script = "#{pwd}/screenshot.js"
 
-        site_url = (site.config['canonical'] || site.config['url']) + site.config['baseurl']
-
-        @@base_url = "#{site_url}/#{images_path}"
+        site_url = site.config['url'] + site.config['baseurl']
+        @@site_base = "#{site_url}"
+        @@site_url = "#{site_url}/#{images_path}"
 
         @@base_params = {
           #'web-security': false,
@@ -51,17 +51,23 @@ module Jekyll
           'disk-cache-path': @@cache_dir
         }.merge(config['phantomjs'] || {})
 
-        @@base_crop = {
+        @@base_image = {
           "top" => 0,
           "left" => 0,
           "width" => 1200,
           "height" => 630,
           "viewWidth" => 1200,
-          "viewHeight" => 630
+          "viewHeight" => 630,
+          "scrollTop" => 0,
+          "scrollLeft" => 0,
+          "zoom" => 1
         }.merge(config['crop'] || {})
 
-        @@base_zoom = 1;
+      end
 
+      # For e.g. myBase.href in CSS includes in the styles
+      def self.site_base
+        @@site_base
       end
 
       def self.save_all
@@ -101,68 +107,138 @@ module Jekyll
         @full_path = File.join(@@source_dir, @path)
         @live_path = File.join(@@dest_dir, @path)
 
-        @url = "#{@@base_url}/#{inner_path}/#{@name}"
+        @url = "#{@@site_url}/#{inner_path}/#{@name}"
 
-        item_props = item.data['opengraph'] || {}
+        item_props = item.data['socialmeta'] || {}
 
         # TODO merge_hash
-        item_crop = (@@config['crop'] || {}).merge(item_props['crop'] || {})
-        @crop = @@base_crop.merge(item_crop)
+        item_image = item_props['image']
+        puts
+        puts "ITEM_IMAGE: #{item_image.inspect}"
 
-        @zoom = item_props['zoom'] || @@base_zoom
-
-        if img = item_props['image']
-          if img !~ /^.*?:\/\//
-            local_fn = File.join(@@dest, img)
-            # See what dimensions it has
-            size = FastImage.size(local_fn)
-            (@zoom, @crop) = adjust_image(size)
-
-            puts "NEW CROP #{@crop.inspect}"
-            source = 'file://' + local_fn
-
-            puts "SIZE: #{size.inspect}"
-          end
+        if !item_image
+          img = {}
+        elsif item_image.is_a?(Hash)
+          img = item_image
         else
-          source = 'file://' + @source[:html]
+          img = { 'source' => item_image }
         end
 
-        #puts "SOURCE: #{source}"
+        puts
+        puts "IMG: #{img.inspect}"
+
+        image_props = (@@config['image'] || {}).merge(img)
+
+        puts
+        puts "IMAGE PROPS: #{image_props.inspect}"
+
+        @image = @@base_image.merge(image_props)
+        puts
+        puts "ORIG IMAGE: #{@image.inspect}"
+
+        images_re = /\.(gif|jpe?g|png|tiff|bmp|ico|cur|psd|svg|webp)$/i
+
+        if src = @image['source']
+          #((src !~ /^.*?:\/\//) || (src =~ /^file:\/\//) || )
+          if src && (src =~ images_re)
+            # Local or remote image
+            puts "SRC: #{src}"
+            if m = /^file:\/\/(.+)/.match(src)
+              source_img = m[1]
+              source_url = src
+            elsif src =~ /:\/\//
+              source_img = src
+              source_url = src
+            else
+              source_img = File.join(@@dest, src)
+              source_url = 'file://' + local_fn
+            end
+
+            puts "SOURCE IMAGE: #{source_img} SOURCE_URL: #{source_url}"
+            # See what dimensions it has
+            size = FastImage.size(source_img)
+            puts "FASTIMAGE SIZE: #{size.inspect}"
+            adjust_image(@image, size)
+
+            puts "NEW IMAGE #{@image.inspect}"
+            #puts "SIZE: #{size.inspect}"
+          else
+            source_url = src
+          end
+        else
+          source_url = 'file://' + @source[:html]
+        end
+
+        puts
+        puts "AFTER IMAGE: #{@image.inspect}"
+
+        # TODO build_params so screenshot can be adjusted before rendering
+        #      Need to expose source, w, h, vw, vh, top, left, scroll
         @params = @@base_params.map {
           |k,v| "--#{k}=#{v.to_s}"
         }
 
+        # Work around scrollPosition bug
+        if @image['scrollTop'] > 0
+          @image['top'] = @image['scrollTop'] * @image['zoom']
+          @image['viewHeight'] += @image['scrollTop'] * @image['zoom']
+        end
+
+        if @image['scrollLeft'] > 0
+          @image['left'] = @image['scrollLeft'] * @image['zoom']
+          @image['viewWidth'] += @image['scrollLeft'] * @image['zoom']
+        end
+
+        # Some styling
+        #item_props['style'] = 'background-color: white; ' + item_props['style'].to_s
+        if @image['center']
+          item_props['style'] = 'text-align: center; ' + item_props['style'].to_s
+          @image['style'] = 'margin: auto; '+@image['style'].to_s
+        end
+
+
+        puts
+        puts "FINAL IMAGE: #{@image.inspect}"
+
+        origin = "#{@image['top'].to_i},#{@image['left'].to_i}"
+        dim = "#{@image['width'].to_i}x#{@image['height'].to_i}"
+        view_dim = "#{@image['viewWidth'].to_i}x#{@image['viewHeight'].to_i}"
+        scroll = "#{@image['scrollTop'].to_i},#{@image['scrollLeft'].to_i}"
+
         @params += [
           @@script,
-          source,
+          source_url,
           @temp_path,
-          @crop['top'].to_s,
-          @crop['left'].to_s,
-          @crop['width'].to_s,
-          @crop['height'].to_s,
-          @crop['viewWidth'].to_s,
-          @crop['viewHeight'].to_s,
-          @zoom.to_s
+          origin,
+          dim,
+          view_dim,
+          scroll,
+          @image['zoom'].to_s,
+          item_props['style'].to_s,
+          @image['style'].to_s
         ]
       end
 
       def render
         pj_start = Time.now
 
+        puts @params.inspect
+        ENV['site_base'] = @@site_base
+
         Phantomjs.run(*@params) { |msg|
           pj_info = msg.split(' ',2)
 
           if pj_info.first == 'error'
-            OpenGraph::error "Phantomjs: #{pj_info[1]}"
+            SocialMeta::error "Phantomjs: #{pj_info[1]}"
           elsif pj_info.first == 'debug'
-            OpenGraph::debug "Phantomjs: #{pj_info[1]}"
+            SocialMeta::debug "Phantomjs: #{pj_info[1]}"
           else
-            OpenGraph::debug "Phantomjs #{msg}"
+            SocialMeta::debug "Phantomjs #{msg}"
           end
         }
 
         pj_runtime = "%.3f" % (Time.now - pj_start).to_f
-        OpenGraph::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
+        SocialMeta::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
 
       end
 
@@ -225,28 +301,55 @@ module Jekyll
       end
 
       private
-      def adjust_image(size)
-        width = size.first.to_f
-        height = size.last.to_f
+      def adjust_image(image, size)
+        v_width = actual_width = size.first.to_f
+        v_height = actual_height = size.last.to_f
 
-        zoom = 1
-        if width < 1200 && height > 630
-          ratio = width / 1200.0
-          puts "RATIO: #{ratio}"
-          new_height = 630 * ratio 
-          top = (height - new_height) / 2
-          left = 0
-          zoom = 1 / ratio
+        top = image['top']
+        left = image['left']
+        zoom = image['zoom']
+
+        # XXX
+        # TODO Declare constants or some class vars (for other sizes, e.g. Twitter Cards)
+
+        desired_ratio = 630 / 1200.0
+
+        #if actual_width < 1200 && actual_height > 630
+        # TODO Allow user to select method
+        if actual_height > actual_width
+          # Tall image, center
+          height_ratio = 630.0 / actual_height
+          zoom *= height_ratio
+
+          width = 1200.0 / zoom
+          height = 630.0 / zoom
+          #v_width = 1200 / zoom
+          #v_height = 630 * 2
+
+        #elsif actual_height > desired_height
+        else
+          desired_height = (630 / 1200.0) * actual_width
+          top = (actual_height - desired_height) / 2
+          left = image['left']
+          width_ratio = 1200.0 / actual_width
+          zoom *= width_ratio
+          width = actual_width
+          height = desired_height
+          #v_width = actual_width * 2
+          #v_height = actual_height * 2
         end
 
-        return [ "%.2f" % zoom, {
-          'top' => top*zoom,
-          'left' => left,
-          'width' => width*zoom,
-          'height' => new_height*zoom,
-          'viewWidth' => width*2,
-          'viewHeight' => height*2
-        }]
+        # The viewport should be bigger so the image isn't resized by the "browser"
+        v_width = (width * zoom) + 100
+        v_height = (height * zoom) + 100
+
+        image['top'] = (top * zoom).to_i
+        image['left'] = (left * zoom).to_i
+        image['width'] = (width * zoom).to_i
+        image['height'] = (height * zoom).to_i
+        image['viewWidth'] = (v_width * zoom).to_i # XXX
+        image['viewHeight'] = (v_height * zoom).to_i
+        image['zoom'] = "%.2f" % zoom
 
       end
 
