@@ -20,7 +20,7 @@ module Jekyll
 
         images_path = File.join(image_path_prefix, 'socialmeta')
 
-        @@temp_dir = File.join(Dir.home(), WORK_DIR, 'screenshots', images_path)
+        @@temp_dir = File.join(site.source, WORK_DIR, 'screenshots', images_path)
         @@source_dir = File.join(site.source, images_path)
         @@dest_dir = File.join(site.dest, images_path)
 
@@ -39,12 +39,14 @@ module Jekyll
         @@script = "#{pwd}/screenshot.js"
 
         site_url = site.config['url'] + site.config['baseurl']
-        @@site_base = "#{site_url}"
         @@site_url = "#{site_url}/#{images_path}"
 
         @@base_params = {
-          #'web-security': false,
+          #'debug': true,
+          #'proxy-type': 'none',
+          'web-security': false,
           'ssl-protocol': 'tlsv1',
+          #'ssl-protocol': 'any',
           'ignore-ssl-errors': true,
           'local-to-remote-url-access': true,
           'disk-cache': true,
@@ -63,11 +65,6 @@ module Jekyll
           "zoom" => 1
         }.merge(config['crop'] || {})
 
-      end
-
-      # For e.g. myBase.href in CSS includes in the styles
-      def self.site_base
-        @@site_base
       end
 
       def self.save_all
@@ -158,7 +155,11 @@ module Jekyll
             # See what dimensions it has
             size = FastImage.size(source_img)
             puts "FASTIMAGE SIZE: #{size.inspect}"
-            adjust_image(@image, size)
+            if size
+              adjust_image(@image, size)
+            else
+              SocialMeta::warn "Unable to determine size, results not optimized"
+            end
 
             puts "NEW IMAGE #{@image.inspect}"
             #puts "SIZE: #{size.inspect}"
@@ -179,14 +180,19 @@ module Jekyll
         }
 
         # Work around scrollPosition bug
-        if @image['scrollTop'] > 0
-          @image['top'] = @image['scrollTop'] * @image['zoom']
-          @image['viewHeight'] += @image['scrollTop'] * @image['zoom']
-        end
+        zoom = @image['zoom'].to_f
 
-        if @image['scrollLeft'] > 0
-          @image['left'] = @image['scrollLeft'] * @image['zoom']
-          @image['viewWidth'] += @image['scrollLeft'] * @image['zoom']
+        scroll_top = @image['scrollTop'].to_i
+        if scroll_top > 0
+          @image['top'] = scroll_top * zoom
+        else
+          @image['style'] += " margin-top: #{-scroll_top * zoom}"
+        end
+        @image['viewHeight'] += scroll_top * zoom
+
+        if scroll_left = @image['scrollLeft'].to_i
+          @image['left'] = scroll_left * zoom
+          @image['viewWidth'] += scroll_left * zoom
         end
 
         # Some styling
@@ -223,7 +229,9 @@ module Jekyll
         pj_start = Time.now
 
         puts @params.inspect
-        ENV['site_base'] = @@site_base
+        ENV['hello'] = 'world'
+        ENV['site_base'] = 'file://'+@@source+'/'
+        puts "SITE BASE: #{ENV['site_base']}"
 
         Phantomjs.run(*@params) { |msg|
           pj_info = msg.split(' ',2)
@@ -316,18 +324,20 @@ module Jekyll
 
         #if actual_width < 1200 && actual_height > 630
         # TODO Allow user to select method
-        if actual_height > actual_width
+        if actual_height > actual_width && !image['wide']
+          puts "IN 1 #{actual_height} > #{actual_width}"
           # Tall image, center
           height_ratio = 630.0 / actual_height
           zoom *= height_ratio
 
-          width = 1200.0 / zoom
-          height = 630.0 / zoom
-          #v_width = 1200 / zoom
-          #v_height = 630 * 2
+          width = 1200 / zoom
+          height = 630 / zoom
+          v_width = 1200 / zoom
+          v_height = 630 * 2
 
         #elsif actual_height > desired_height
         else
+          puts "IN 2 H #{actual_height} <= W #{actual_width}"
           desired_height = (630 / 1200.0) * actual_width
           top = (actual_height - desired_height) / 2
           left = image['left']
@@ -335,13 +345,20 @@ module Jekyll
           zoom *= width_ratio
           width = actual_width
           height = desired_height
-          #v_width = actual_width * 2
-          #v_height = actual_height * 2
+          #if width < 1200
+            v_width = actual_width * 2
+            v_height = actual_height * 2
+          #else
+          #  v_width = 1200 / zoom
+          #  v_height = 630
+          #end
+          # This looks bad centered; fills width anyway
+          image['center'] = false;
         end
 
         # The viewport should be bigger so the image isn't resized by the "browser"
-        v_width = (width * zoom) + 100
-        v_height = (height * zoom) + 100
+        #v_width = (width * zoom) + 100
+        #v_height = (height * zoom) + 100
 
         image['top'] = (top * zoom).to_i
         image['left'] = (left * zoom).to_i
@@ -349,7 +366,7 @@ module Jekyll
         image['height'] = (height * zoom).to_i
         image['viewWidth'] = (v_width * zoom).to_i # XXX
         image['viewHeight'] = (v_height * zoom).to_i
-        image['zoom'] = "%.2f" % zoom
+        image['zoom'] = "%.8f" % zoom
 
       end
 
