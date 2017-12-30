@@ -27,10 +27,10 @@ module Jekyll
       end
 
       def render
-        # Copy prerendered 
+        # Copy prerendered
         @prerendered.each do |screenshot|
           SocialMeta::debug "Prerendered #{screenshot.source[:url]}"
-          screenshot.activate 
+          screenshot.activate
         end
 
         # Rewrite relative paths
@@ -105,7 +105,7 @@ module Jekyll
       def jobs
         @render_queue.length + @prerendered.length
       end
-       
+
       def clear
         @renamed.clear
         @render_queue.clear

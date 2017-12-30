@@ -68,7 +68,7 @@ module Jekyll
       prerendered = @screenshots.jobs - count
 
       @screenshots.finalize
-      
+
       runtime = "%.3f" % (Time.now - @start_render).to_f
       s = (prerendered == 1 ? '' : 's')
       self.info "#{prerendered} image#{s} reused" if prerendered > 0
@@ -90,6 +90,10 @@ module Jekyll
 
     def self.debug(msg)
       Jekyll.logger.warn "SocialMeta:", msg if @debug
+    end
+
+    def self.error(msg)
+      Jekyll.logger.error "SocialMeta:", msg
     end
 
     class Generator < Jekyll::Generator
@@ -171,11 +175,16 @@ module Jekyll
               stats[collection][:render] += 1
             end
 
-            # Still enqueue because Jekyll may wipe out _site and created our dest_dirs if starting from scratch
+            # Still enqueue because Jekyll may wipe out _site and
+            #  our dest_dirs
             SocialMeta::screenshots.enqueue(screenshot)
           end
 
-          SocialMeta::info "[#{collection}] #{stats[collection][:total]} seen, #{stats[collection][:skipped]} skipped, #{stats[collection][:render]} rendering"
+          if !stats[collection][:render].zero?
+            SocialMeta::info "[#{collection}] #{stats[collection][:total]} " +
+              "seen, #{stats[collection][:skipped]} skipped, " +
+              " #{stats[collection][:render]} rendering"
+          end
         end
 
         SocialMeta::end_main

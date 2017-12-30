@@ -210,11 +210,13 @@ module Jekyll
         ENV['site_base'] = 'file://'+@@source+'/'
         puts "SITE BASE: #{ENV['site_base']}"
 
+        error = false
         Phantomjs.run(*@params) { |msg|
           pj_info = msg.split(' ',2)
 
           if pj_info.first == 'error'
             SocialMeta::error "Phantomjs: #{pj_info[1]}"
+            error = true
           elsif pj_info.first == 'debug'
             SocialMeta::debug "Phantomjs: #{pj_info[1]}"
           else
@@ -223,8 +225,11 @@ module Jekyll
         }
 
         pj_runtime = "%.3f" % (Time.now - pj_start).to_f
-        SocialMeta::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
+        if !error
+          SocialMeta::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
+        end
 
+        error
       end
 
       def activate
@@ -302,8 +307,8 @@ module Jekyll
           height_ratio = 630.0 / actual_height
           zoom *= height_ratio
 
-          width = 1200 / zoom
-          height = 630 / zoom
+          #width = 1200 / zoom
+          #height = 630 / zoom
           v_width = 1200 / zoom
           v_height = 630 * 2
 
@@ -315,8 +320,8 @@ module Jekyll
           margin = "#{((630 - (actual_height * zoom)) / 2).to_i}"
           image['style'] += " margin-top: #{margin};  margin-bottom: #{margin};"
 
-          width = 1200 / zoom
-          height = 630 / zoom
+          #width = 1200 / zoom
+          #height = 630 / zoom
           v_width = 1200 / zoom
           v_height = 630 * 2
 
@@ -327,16 +332,16 @@ module Jekyll
             top = (actual_height - desired_height) / 2
             left = image['left']
             zoom *= (1200.0 / actual_width)
-            width = actual_width
-            height = desired_height
-            v_width = actual_width * 2
-            v_height = actual_height * 2
+            #width = actual_width
+            #height = desired_height
+            v_width = 2* 1200
+            v_height = 2 * 630
           else
             puts "IN 4 H #{actual_height} <= #{expected_height}"
 
             zoom *= (630.0 / actual_height)
-            height = actual_height
-            width = 1200.0 / zoom
+            #height = actual_height
+            #width = 1200.0 / zoom
             v_width = actual_width * 2
             v_height = actual_height * 2
 
@@ -352,8 +357,10 @@ module Jekyll
 
         image['top'] = (top * zoom).to_i
         image['left'] = (left * zoom).to_i
-        image['width'] = (width * zoom).to_i
-        image['height'] = (height * zoom).to_i
+        #image['width'] = (width * zoom).to_i
+        #image['height'] = (height * zoom).to_i
+        image['width'] = 1200
+        image['height'] = 630
         image['viewWidth'] = (v_width * zoom).to_i # XXX
         image['viewHeight'] = (v_height * zoom).to_i
         image['zoom'] = "%.8f" % zoom
@@ -406,9 +413,11 @@ module Jekyll
           puts "IMG: #{img.inspect}"
           src = (img[0] || img[1]).strip
           puts "SAW IMAGE SRC #{src}"
+
           if m = /^file:\/\/(.+)$/.match(src)
             src = m[1]
           elsif src =~ /:\/\//
+            # Ignore remote images
             next
           else
             if src =~ /^\//
@@ -416,8 +425,8 @@ module Jekyll
               src = File.join(@@dest, src.split('/'))
               puts " SRC=#{src}"
             else
-              src = File.join(item.path, src)
-              puts "ITEM PATH: #{item.path} SRC=#{src}"
+              src = File.join(@@dest, item.url, src)
+              puts "ITEM URL: #{item.url} SRC=#{src}"
             end
           end
         end
