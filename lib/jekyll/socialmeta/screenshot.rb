@@ -336,7 +336,7 @@ module Jekyll
 
             zoom *= (630.0 / actual_height)
             height = actual_height
-            width = expected_width
+            width = 1200.0 / zoom
             v_width = actual_width * 2
             v_height = actual_height * 2
 
