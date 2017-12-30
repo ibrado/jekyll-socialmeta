@@ -234,7 +234,7 @@ module Jekyll
 
       def activate
         if !is_saved?
-          if is_available? 
+          if is_available?
             copy(@temp_path, @full_path)
           else
             save
@@ -245,7 +245,7 @@ module Jekyll
       end
 
       def save
-        if !is_available? 
+        if !is_available?
           render
         end
 
@@ -300,51 +300,57 @@ module Jekyll
 
         #if actual_width < 1200 && actual_height > 630
         # TODO Allow user to select method
-        if actual_height > actual_width && !image['full']
-          # Tall
-          puts "IN 1 #{actual_height} > #{actual_width}"
-          # Tall image, center
-          height_ratio = 630.0 / actual_height
-          zoom *= height_ratio
+        if !image['fill']
+          if actual_height > actual_width
+            # Tall
+            if actual_height < expected_height
+              puts "IN 1 - Tall, no fill"
+              # Tall image, center
+              height_ratio = 630.0 / actual_height
+              zoom *= height_ratio
+              v_height = 630 * 2
+            else
+              # Really tall
+              puts "IN 2 - Really tall, no fill"
+              height_ratio = 630.0 / actual_height
+              zoom *= height_ratio
+              v_height = 630 / zoom
+            end
+            v_width = 1200 / zoom
+          else
+            puts "IN 3 - Wide, no fill"
+            # Wide
+            zoom *= (1200.0 / actual_width)
 
-          #width = 1200 / zoom
-          #height = 630 / zoom
-          v_width = 1200 / zoom
-          v_height = 630 * 2
+            margin = "#{((630 - (actual_height * zoom)) / 2).to_i}"
+            image['style'] += " margin-top: #{margin};  margin-bottom: #{margin};"
+            v_width = 1200 / zoom
 
-        elsif (actual_height < expected_height) && !image['full']
-          puts "IN 2 H #{actual_height} <= calculated height"
-          # Wide
-          zoom *= (1200.0 / actual_width)
+          end
 
-          margin = "#{((630 - (actual_height * zoom)) / 2).to_i}"
-          image['style'] += " margin-top: #{margin};  margin-bottom: #{margin};"
-
-          #width = 1200 / zoom
-          #height = 630 / zoom
-          v_width = 1200 / zoom
-          v_height = 630 * 2
 
         else
-          if actual_height > expected_height
-            puts "IN 3 H #{actual_height} > expected #{expected_height}"
-            desired_height = (630 / 1200.0) * actual_width
-            top = (actual_height - desired_height) / 2
-            left = image['left']
-            zoom *= (1200.0 / actual_width)
-            #width = actual_width
-            #height = desired_height
-            v_width = 2* 1200
-            v_height = 2 * 630
+          if actual_height > actual_width
+            if actual_height < expected_height
+              puts "IN 4 - Tall, fill"
+              desired_height = (630 / 1200.0) * actual_width
+              top = (actual_height - desired_height) / 2
+              zoom *= (1200.0 / actual_width)
+              v_height = 630 * 2
+              v_width = 1200 / zoom
+
+            else
+              puts "IN 5 - Really tall, fill"
+              top = (actual_height - expected_height) / 2
+              zoom *= (1200.0 / actual_width)
+              v_height = 630 * 2
+              v_width = 1200 / 2
+            end
+
           else
-            puts "IN 4 H #{actual_height} <= #{expected_height}"
-
+            puts "IN 6 - Default, fill"
             zoom *= (630.0 / actual_height)
-            #height = actual_height
-            #width = 1200.0 / zoom
-            v_width = actual_width * 2
-            v_height = actual_height * 2
-
+            v_width = 1200  * 2
           end
 
           # This looks bad centered; fills width anyway
@@ -430,7 +436,7 @@ module Jekyll
             end
           end
         end
-        
+
         "file://#{src}"
 
       end
