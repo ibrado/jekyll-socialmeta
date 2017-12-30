@@ -185,15 +185,18 @@ module Jekyll
         scroll_top = @image['scrollTop'].to_i
         if scroll_top > 0
           @image['top'] = scroll_top * zoom
-        else
-          @image['style'] += " margin-top: #{-scroll_top * zoom}"
+        elsif scroll_top < 0
+          @image['style'] += " margin-top: #{(-scroll_top * zoom).to_i}px"
         end
         @image['viewHeight'] += scroll_top * zoom
 
-        if scroll_left = @image['scrollLeft'].to_i
+        scroll_left = @image['scrollLeft'].to_i
+        if scroll_left > 0
           @image['left'] = scroll_left * zoom
-          @image['viewWidth'] += scroll_left * zoom
+        elsif scroll_left <  0
+          @image['style'] += " margin-left: #{(-scroll_left * zoom).to_i}px"
         end
+        @image['viewWidth'] += scroll_left * zoom
 
         # Some styling
         #item_props['style'] = 'background-color: white; ' + item_props['style'].to_s
