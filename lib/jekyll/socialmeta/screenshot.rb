@@ -295,7 +295,7 @@ module Jekyll
 
         #if actual_width < 1200 && actual_height > 630
         # TODO Allow user to select method
-        if actual_height > actual_width && !image['wide']
+        if actual_height > actual_width && !image['full']
           # Tall
           puts "IN 1 #{actual_height} > #{actual_width}"
           # Tall image, center
@@ -307,7 +307,7 @@ module Jekyll
           v_width = 1200 / zoom
           v_height = 630 * 2
 
-        elsif (actual_height < expected_height)
+        elsif (actual_height < expected_height) && !image['full']
           puts "IN 2 H #{actual_height} <= calculated height"
           # Wide
           zoom *= (1200.0 / actual_width)
@@ -321,20 +321,27 @@ module Jekyll
           v_height = 630 * 2
 
         else
-          puts "IN 3 H #{actual_height} <= W #{actual_width}"
-          desired_height = (630 / 1200.0) * actual_width
-          top = (actual_height - desired_height) / 2
-          left = image['left']
-          zoom *= (1200.0 / actual_width)
-          width = actual_width
-          height = desired_height
-          #if width < 1200
+          if actual_height > expected_height
+            puts "IN 3 H #{actual_height} > expected #{expected_height}"
+            desired_height = (630 / 1200.0) * actual_width
+            top = (actual_height - desired_height) / 2
+            left = image['left']
+            zoom *= (1200.0 / actual_width)
+            width = actual_width
+            height = desired_height
             v_width = actual_width * 2
             v_height = actual_height * 2
-          #else
-          #  v_width = 1200 / zoom
-          #  v_height = 630
-          #end
+          else
+            puts "IN 4 H #{actual_height} <= #{expected_height}"
+
+            zoom *= (630.0 / actual_height)
+            height = actual_height
+            width = expected_width
+            v_width = actual_width * 2
+            v_height = actual_height * 2
+
+          end
+
           # This looks bad centered; fills width anyway
           image['center'] = false;
         end
