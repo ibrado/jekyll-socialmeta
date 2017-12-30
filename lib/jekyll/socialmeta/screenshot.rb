@@ -287,11 +287,16 @@ module Jekyll
         # XXX
         # TODO Declare constants or some class vars (for other sizes, e.g. Twitter Cards)
 
+        # TODO Simplify these
+
         desired_ratio = 630 / 1200.0
+        expected_height = actual_width * desired_ratio
+        expected_width  = actual_height / desired_ratio
 
         #if actual_width < 1200 && actual_height > 630
         # TODO Allow user to select method
         if actual_height > actual_width && !image['wide']
+          # Tall
           puts "IN 1 #{actual_height} > #{actual_width}"
           # Tall image, center
           height_ratio = 630.0 / actual_height
@@ -302,14 +307,25 @@ module Jekyll
           v_width = 1200 / zoom
           v_height = 630 * 2
 
-        #elsif actual_height > desired_height
+        elsif (actual_height < expected_height)
+          puts "IN 2 H #{actual_height} <= calculated height"
+          # Wide
+          zoom *= (1200.0 / actual_width)
+
+          margin = "#{((630 - (actual_height * zoom)) / 2).to_i}"
+          image['style'] += " margin-top: #{margin};  margin-bottom: #{margin};"
+
+          width = 1200 / zoom
+          height = 630 / zoom
+          v_width = 1200 / zoom
+          v_height = 630 * 2
+
         else
-          puts "IN 2 H #{actual_height} <= W #{actual_width}"
+          puts "IN 3 H #{actual_height} <= W #{actual_width}"
           desired_height = (630 / 1200.0) * actual_width
           top = (actual_height - desired_height) / 2
           left = image['left']
-          width_ratio = 1200.0 / actual_width
-          zoom *= width_ratio
+          zoom *= (1200.0 / actual_width)
           width = actual_width
           height = desired_height
           #if width < 1200
