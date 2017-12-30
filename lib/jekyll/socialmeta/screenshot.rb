@@ -133,39 +133,13 @@ module Jekyll
         puts
         puts "ORIG IMAGE: #{@image.inspect}"
 
-        images_re = /\.(gif|jpe?g|png|tiff|bmp|ico|cur|psd|svg|webp)$/i
-
         if src = @image['source']
-          #((src !~ /^.*?:\/\//) || (src =~ /^file:\/\//) || )
-          if src && (src =~ images_re)
-            # Local or remote image
-            puts "SRC: #{src}"
-            if m = /^file:\/\/(.+)/.match(src)
-              source_img = m[1]
-              source_url = src
-            elsif src =~ /:\/\//
-              source_img = src
-              source_url = src
-            else
-              source_img = File.join(@@dest, src)
-              source_url = 'file://' + local_fn
-            end
+          source_url = preprocess_image(src)
 
-            puts "SOURCE IMAGE: #{source_img} SOURCE_URL: #{source_url}"
-            # See what dimensions it has
-            size = FastImage.size(source_img)
-            puts "FASTIMAGE SIZE: #{size.inspect}"
-            if size
-              adjust_image(@image, size)
-            else
-              SocialMeta::warn "Unable to determine size, results not optimized"
-            end
+        elsif item.content =~ /!\[.*?\]\(|<img.*?src=['"]/
+          src = find_largest_image(item)
+          source_url = preprocess_image(src)
 
-            puts "NEW IMAGE #{@image.inspect}"
-            #puts "SIZE: #{size.inspect}"
-          else
-            source_url = src
-          end
         else
           source_url = 'file://' + @source[:html]
         end
@@ -302,16 +276,6 @@ module Jekyll
         !valid?
       end
 
-      private
-      def copy(src, dest)
-        dest_path = Pathname(dest).dirname
-        if !File.exist?(dest_path)
-          FileUtils.mkdir_p dest_path
-        end
-        FileUtils.cp(src, dest)
-      end
-
-      private
       def adjust_image(image, size)
         v_width = actual_width = size.first.to_f
         v_height = actual_height = size.last.to_f
@@ -370,7 +334,82 @@ module Jekyll
         image['viewWidth'] = (v_width * zoom).to_i # XXX
         image['viewHeight'] = (v_height * zoom).to_i
         image['zoom'] = "%.8f" % zoom
+      end
 
+      def preprocess_image(src)
+        #((src !~ /^.*?:\/\//) || (src =~ /^file:\/\//) || )
+        images_re = /\.(gif|jpe?g|png|tiff|bmp|ico|cur|psd|svg|webp)$/i
+        if src && (src =~ images_re)
+          # Local or remote image
+          puts "SRC: #{src}"
+          if m = /^file:\/\/(.+)/.match(src)
+            source_img = m[1]
+            source_url = src
+          elsif src =~ /:\/\//
+            source_img = src
+            source_url = src
+          else
+            source_img = File.join(@@dest, src)
+            source_url = 'file://' + source_img
+          end
+
+          puts "SOURCE IMAGE: #{source_img} SOURCE_URL: #{source_url}"
+          # See what dimensions it has
+          size = FastImage.size(source_img)
+          puts "FASTIMAGE SIZE: #{size.inspect}"
+          if size
+            adjust_image(@image, size)
+          else
+            SocialMeta::warn "Unable to determine size, results not optimized"
+          end
+
+          puts "NEW IMAGE #{@image.inspect}"
+          #puts "SIZE: #{size.inspect}"
+        else
+          source_url = src
+        end
+
+        source_url
+      end
+
+      def find_largest_image(item)
+        image_tag_re = /!\[.*?\]\((.*?)\)|<img.*?src=['"](.*?)['"]/i
+
+        # Find all local images
+
+        src = ""
+
+        item.content.scan(image_tag_re).each do |img|
+          puts "IMG: #{img.inspect}"
+          src = (img[0] || img[1]).strip
+          puts "SAW IMAGE SRC #{src}"
+          if m = /^file:\/\/(.+)$/.match(src)
+            src = m[1]
+          elsif src =~ /:\/\//
+            next
+          else
+            if src =~ /^\//
+              print "FULL PATH #{src}"
+              src = File.join(@@dest, src.split('/'))
+              puts " SRC=#{src}"
+            else
+              src = File.join(item.path, src)
+              puts "ITEM PATH: #{item.path} SRC=#{src}"
+            end
+          end
+        end
+        
+        "file://#{src}"
+
+      end
+
+      private
+      def copy(src, dest)
+        dest_path = Pathname(dest).dirname
+        if !File.exist?(dest_path)
+          FileUtils.mkdir_p dest_path
+        end
+        FileUtils.cp(src, dest)
       end
 
     end
