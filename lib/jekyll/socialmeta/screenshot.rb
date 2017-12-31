@@ -137,15 +137,16 @@ module Jekyll
         puts
         puts "ORIG IMAGE: #{@image.inspect}"
 
-        if src = @image['source']
-          source_url = preprocess_image(src)
+        src = @image['source'].strip
+        if !src || (src =~ /^(screenshot|this|page)$/)
+          source_url = 'file://' + @source[:html]
 
         elsif item.content =~ /!\[.*?\]\(|<img.*?src=['"]/
           src = find_largest_image(item)
           source_url = preprocess_image(src)
 
         else
-          source_url = 'file://' + @source[:html]
+          source_url = preprocess_image(src)
         end
 
         puts
