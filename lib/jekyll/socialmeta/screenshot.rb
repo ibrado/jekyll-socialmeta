@@ -392,9 +392,10 @@ module Jekyll
       def find_largest_image(item)
         image_tag_re = /!\[.*?\]\((.*?)\)|<img.*?src=['"](.*?)['"]/i
 
-        # Find all local images
+        # Find all the images
 
         src = ""
+        src_sizes = []
 
         item.content.scan(image_tag_re).each do |img|
           puts "IMG: #{img.inspect}"
@@ -414,9 +415,28 @@ module Jekyll
             end
           # else use remote source as-is
           end
+
+          if size = FastImage.size(src)
+            puts "SIZE: #{size.inspect}"
+            w = size.first
+            h = size.last
+            src_sizes << { :source => src,
+              #:height => h,
+              #:width => w,
+              :area => w*h
+            }
+          end
         end
 
-        "file://#{src}"
+        # Find largest by area
+
+        largest = src_sizes.sort_by { |k,v| v }.last[:source]
+        puts "LARGEST IS #{largest}"
+        if largest =~ /^\//
+          "file://#{largest}"
+        else
+          largest
+        end
 
       end
 
