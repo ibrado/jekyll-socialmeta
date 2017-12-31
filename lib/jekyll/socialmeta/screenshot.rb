@@ -317,6 +317,7 @@ module Jekyll
               v_height = 630 / zoom
             end
             v_width = 1200 / zoom
+
           else
             puts "IN 3 - Wide, no fill"
             # Wide
@@ -337,14 +338,16 @@ module Jekyll
               top = (actual_height - desired_height) / 2
               zoom *= (1200.0 / actual_width)
               v_height = 630 * 2
-              v_width = 1200 / zoom
+              v_width = 1200 * 2
 
             else
               puts "IN 5 - Really tall, fill"
-              top = (actual_height - expected_height) / 2
-              zoom *= (1200.0 / actual_width)
-              v_height = 630 * 2
-              v_width = 1200 / 2
+              height_ratio = 1200.0 / actual_width
+              zoom *= height_ratio
+              puts "ACTUAL HEIGHT #{actual_height}"
+              top = ((actual_height - 630 ) / 2) / zoom
+              v_height = 630 / zoom
+              v_width = 1200 / zoom
             end
 
           else
@@ -353,7 +356,6 @@ module Jekyll
             v_width = 1200  * 2
           end
 
-          # This looks bad centered; fills width anyway
           image['center'] = false;
         end
 
