@@ -287,21 +287,22 @@ module Jekyll
 
         puts "*** ORIG TOP: #{top}"
 
+        # The proportional height
+        height = (width * ( 630 / 1200.0)).to_i
+
+        # Crop from center
+        if height < actual_height
+          top += (actual_height - height) / 2
+        elsif height > 630
+          top += (height - 630) / 2
+        end
+
           # Adjust to proper proportions
         if image['enlarge']
           # Calculate zoom, format for consistent output with non-enlarged (rounding)
-          factor = "%.8f" % (1200.0 / actual_width)
-          zoom *= factor.to_f
+          zoom *= (1200.0 / actual_width)
           width = 1200
-          height = (actual_height * zoom).to_i
-
-          # Crop from center
-          if height < actual_height
-            top += (actual_height - height) / 2
-          elsif height > 630
-            top += (height - 630) / 2
-          end
-          puts "*** CROP TOP: #{top}"
+          height *= zoom
 
           top *= zoom
           #left = (1200 - width) / 2
@@ -317,16 +318,7 @@ module Jekyll
           #v_height *= zoom
 
         else
-          # The proportional height
-          height = (width * ( 630 / 1200.0)).to_i
 
-          # Crop from center
-          if height < actual_height
-            top += (actual_height - height) / 2
-          elsif height > 630
-            top += (height - 630) / 2
-          end
- 
           v_height = height * 2
           v_width = width * 2
 
