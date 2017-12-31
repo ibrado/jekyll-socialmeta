@@ -55,12 +55,15 @@ module Jekyll
 
         @@base_image = {
           "resize" => true,
+          "center" => false,
           "top" => 0,
           "left" => 0,
           "width" => 1200,
           "height" => 630,
           "viewWidth" => 1200,
           "viewHeight" => 630,
+          "centerTop" => 0,
+          "centerLeft" => 0,
           "scrollTop" => 0,
           "scrollLeft" => 0,
           "zoom" => 1
@@ -165,14 +168,15 @@ module Jekyll
         @image['left'] += scroll_left
         @image['viewWidth'] += scroll_left
 
-        #@image['style'] += " margin-left: #{(-scroll_left * zoom).to_i}px"
-        #@image['viewWidth'] += scroll_left * zoom
-
         # Some styling
-        #item_props['style'] = 'background-color: white; ' + item_props['style'].to_s
+
+        puts "CENTER? #{@image['center']}"
+
         if @image['center']
-          item_props['style'] = 'text-align: center; ' + item_props['style'].to_s
-          @image['style'] = 'margin: auto; '+@image['style'].to_s
+          #item_props['style'] = 'text-align: center; ' + item_props['style'].to_s
+          #@image['style'] = 'margin: auto; '+@image['style'].to_s
+
+          @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
         end
 
 
@@ -278,12 +282,14 @@ module Jekyll
       end
 
       def adjust_image(image, size)
-        width = actual_width = size.first.to_f
-        height = actual_height = size.last.to_f
+        r_width = width = actual_width = size.first.to_f
+        r_height = height = actual_height = size.last.to_f
 
         zoom = image['zoom']
         top = image['top']
         left = image['left']
+        center_top = 0
+        center_left = 0
 
         # The proportional height
         desired_ratio = 630 / 1200.0
@@ -296,37 +302,50 @@ module Jekyll
         # Crop from center
         if actual_height < actual_width
           if height < actual_height
+            puts "TOP 1"
             top += (actual_height - height) / 2
-          elsif height > 630
-            top += (height - 630) / 2
+          #else
+          #  puts "TOP 2"
+            #top += (630 - expected_height) / 2
           end
         end
 
         if image['resize']
           if actual_height > actual_width
+            puts "R resize 1a"
             zoom *= (630.0 / actual_height)
-            width *= zoom
+            r_height = 630
+            r_width = actual_width * zoom
           else
+            puts "R resize 1b"
             zoom *= (1200.0 / actual_width)
-            height *= zoom
+            r_height = actual_height * zoom
+            r_width = 1200
           end
 
-          v_height = 630 * 2
-          v_width = 1200 * 2
-
           top *= zoom
+          width *= zoom
+          height *= zoom
+
 
           width = 1200
           height = 630
 
+          v_width = 1200 * 2
+          v_height = 630 * 2
+
         else
+          r_width = width
 
           if actual_height < actual_width
+            puts "R noresize 2a"
             v_height = height * 2
             v_width = width * 2
+            r_height = actual_height
 
           else
-            height = actual_height
+            puts "R noresize 2b"
+            r_height = height = actual_height
             width = expected_width
             v_height = height * 2
             v_width = width * 2
@@ -334,10 +353,18 @@ module Jekyll
 
         end
 
+        center_left = ((width - r_width) / 2) / zoom
+        center_top = (top + (height - r_height) / 2) / zoom
+
+        puts "CL = (#{width.to_i} - #{r_width.to_i}) / 2 = #{center_left.to_i}"
+        puts "CT = (#{height.to_i} - #{r_height.to_i}) /2  = #{center_top.to_i}"
+
         image['top'] = top.to_i
         image['left'] = left.to_i
         image['width'] = width.to_i
         image['height'] = height.to_i
+        image['centerTop'] = center_top.to_i
+        image['centerLeft'] = center_left.to_i
         image['viewWidth'] = v_width.to_i
         image['viewHeight'] = v_height.to_i
         image['zoom'] = "%.8f" % zoom
@@ -393,10 +420,7 @@ module Jekyll
 
           if m = /^file:\/\/(.+)$/.match(src)
             src = m[1]
-          elsif src =~ /:\/\//
-            # Ignore remote images
-            next
-          else
+          elsif src !~ /:\/\//
             if src =~ /^\//
               print "FULL PATH #{src}"
               src = File.join(@@dest, src.split('/'))
@@ -405,6 +429,7 @@ module Jekyll
               src = File.join(@@dest, item.url, src)
               puts "ITEM URL: #{item.url} SRC=#{src}"
             end
+          # else use remote source as-is
           end
         end
 
