@@ -115,13 +115,14 @@ module Jekyll
         @renamed.clear
         @render_queue.clear
         @prerendered.clear
+        Screenshot.clear
       end
 
       def finalize
         if @render_queue.length > 0
           Screenshot.save_all
           Screenshot.activate_all
-          Screenshot.clean_all
+          #Screenshot.clean_all
         end
       end
 

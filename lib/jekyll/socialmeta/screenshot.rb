@@ -12,13 +12,9 @@ module Jekyll
         @@dest = site.dest
         @@source = site.source
 
-        if config['images']
-          image_path_prefix = File.join(config['images'])
-        else
-          image_path_prefix = File.join('assets', 'images')
-        end
+        @@instances = []
 
-        images_path = File.join(image_path_prefix, 'socialmeta')
+        images_path = File.join(config['images'] || 'images', 'socialmeta')
 
         @@temp_dir = File.join(site.source, WORK_DIR, 'screenshots', images_path)
         @@source_dir = File.join(site.source, images_path)
@@ -73,7 +69,12 @@ module Jekyll
       end
 
       def self.save_all
-        FileUtils.cp_r "#{@@temp_dir}/.", "#{@@source_dir}"
+        #FileUtils.cp_r "#{@@temp_dir}/.", "#{@@source_dir}"
+        # Copy and rename
+        @@instances.each do |screenshot|
+          screenshot.copy_self(@@source_dir)
+        end
+
       end
 
       def self.activate_all
@@ -84,7 +85,13 @@ module Jekyll
         FileUtils.rm_r "#{@@temp_dir}"
       end
 
+      def self.clear
+        @@instances.clear
+      end
+
       def initialize(item)
+        @@instances << self
+
         @source = {
           :url => item.url,
           :base => @@dest,
@@ -92,7 +99,9 @@ module Jekyll
           :html => item.destination('')
         }
 
-        @name = 'og-image.jpg' # XXX
+        # Will insert timestamp later, necessary to prevent FB from caching unupdated ones
+        # TODO: user-overridden formats
+        @name = 'og-ts.jpg' # XXX
 
         # Setup temp folder
         # e.g. 2017-12-28-my-test
@@ -102,12 +111,18 @@ module Jekyll
         FileUtils.mkdir_p File.join(@@temp_dir, inner_path)
         FileUtils.mkdir_p File.join(@@source_dir, inner_path)
 
-        # e.g. 2017-12-28-my-test/og-image.png
+        # e.g. 2017-12-28-my-test/og-ts.png
+        # XXX
         @path = File.join(inner_path, @name)
 
         @temp_path = File.join(@@temp_dir, @path)
         @full_path = File.join(@@source_dir, @path)
         @live_path = File.join(@@dest_dir, @path)
+
+        # Save timestamp if available
+        @timestamp = is_available? ?
+          File.mtime(@temp_path).strftime('%Y%m%d%H%M%S') :
+          '00000000000000'
 
         @url = "#{@@site_url}/#{inner_path}/#{@name}"
 
@@ -208,6 +223,7 @@ module Jekyll
 
         pj_runtime = "%.3f" % (Time.now - pj_start).to_f
         if success
+          @timestamp = Time.now.strftime('%Y%m%d%H%M%S')
           SocialMeta::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
         end
 
@@ -217,13 +233,13 @@ module Jekyll
       def activate
         if !is_saved?
           if is_available?
-            copy(@temp_path, @full_path)
+            copy(@temp_path, timestamped(@full_path))
           else
             save
           end
         end
 
-        copy(@full_path, @live_path)
+        copy(timestamped(@full_path), timestamped(@live_path))
       end
 
       def save
@@ -231,7 +247,7 @@ module Jekyll
           render
         end
 
-        copy(@temp_path, @full_path)
+        copy(@temp_path, timestamped(@full_path))
       end
 
       def is_available?
@@ -239,11 +255,11 @@ module Jekyll
       end
 
       def is_saved?
-        File.exist? @full_path
+        File.exist? timestamped(@full_path)
       end
 
       def is_live?
-        File.exist? @live_path
+        File.exist? timestamped(@live_path)
       end
 
       def is_rendered?
@@ -255,7 +271,7 @@ module Jekyll
       end
 
       def is_valid?
-        (is_saved? && (File.mtime(@source[:file]) <= File.mtime(@full_path))) ||
+        (is_saved? && (File.mtime(@source[:file]) <= File.mtime(timestamped(@full_path)))) ||
           (is_available? && (File.mtime(@source[:file]) <= File.mtime(@temp_path)))
       end
 
@@ -412,13 +428,27 @@ module Jekyll
 
       end
 
+      def copy_self(dest_dir)
+        copy(@temp_path, File.join(dest_dir, @path))
+      end
+
       private
       def copy(src, dest)
         dest_path = Pathname(dest).dirname
         if !File.exist?(dest_path)
           FileUtils.mkdir_p dest_path
         end
+
+        ts_re = /^(.*?)-ts(\.[^\.]+)$/
+        dest.gsub!(ts_re, '\1-' + @timestamp  + '\2')
+
         FileUtils.cp(src, dest)
+      end
+
+      private
+      def timestamped(path)
+        ts_re = /^(.*?)-ts(\.[^\.]+)$/
+        path.gsub(ts_re, '\1-' + @timestamp  + '\2')
       end
 
     end

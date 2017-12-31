@@ -6,10 +6,10 @@ require 'fileutils'
 require 'uri'
 
 module Jekyll
-  DATA_PROP = '_x_j_socialmeta'.freeze
-  FINAL_PROP = 'socialmeta'.freeze
-
   module SocialMeta
+    DATA_PROP = '_x_j_socialmeta'.freeze
+    FINAL_PROP = 'socialmeta'.freeze
+
     # Allow {{ socialmeta.* }}
     Jekyll::Hooks.register :pages, :pre_render do |page, payload|
       if !page.data[DATA_PROP].nil?
@@ -67,7 +67,9 @@ module Jekyll
       count = @screenshots.length
       prerendered = @screenshots.jobs - count
 
-      @screenshots.finalize
+      if @screenshots.jobs > 0
+        @screenshots.finalize
+      end
 
       runtime = "%.3f" % (Time.now - @start_render).to_f
       s = (prerendered == 1 ? '' : 's')
