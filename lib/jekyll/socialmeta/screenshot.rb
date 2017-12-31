@@ -157,28 +157,11 @@ module Jekyll
           |k,v| "--#{k}=#{v.to_s}"
         }
 
-        # Work around scrollPosition bug
-        zoom = @image['zoom'].to_f
-
-        scroll_top = @image['scrollTop'].to_i
-        @image['top'] += scroll_top
-        @image['viewHeight'] += scroll_top
-
-        scroll_left = @image['scrollLeft'].to_i
-        @image['left'] += scroll_left
-        @image['viewWidth'] += scroll_left
-
         # Some styling
 
-        puts "CENTER? #{@image['center']}"
-
         if @image['center']
-          #item_props['style'] = 'text-align: center; ' + item_props['style'].to_s
-          #@image['style'] = 'margin: auto; '+@image['style'].to_s
-
           @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
         end
-
 
         puts
         puts "FINAL IMAGE: #{@image.inspect}"
