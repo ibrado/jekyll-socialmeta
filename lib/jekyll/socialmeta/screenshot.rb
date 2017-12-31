@@ -54,7 +54,7 @@ module Jekyll
         }.merge(config['phantomjs'] || {})
 
         @@base_image = {
-          "enlarge" => true,
+          "resize" => true,
           "top" => 0,
           "left" => 0,
           "width" => 1200,
@@ -298,8 +298,7 @@ module Jekyll
         end
 
           # Adjust to proper proportions
-        if image['enlarge']
-          # Calculate zoom, format for consistent output with non-enlarged (rounding)
+        if image['resize']
           zoom *= (1200.0 / actual_width)
           width = 1200
           height *= zoom
