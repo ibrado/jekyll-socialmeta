@@ -69,6 +69,7 @@ module Jekyll
           "zoom" => 1
         }.merge(config['crop'] || {})
 
+        @@default_source = config['default'];
       end
 
       def self.save_all
@@ -111,6 +112,7 @@ module Jekyll
         @url = "#{@@site_url}/#{inner_path}/#{@name}"
 
         item_props = item.data['socialmeta'] || {}
+        default_source = item_props['default'] || @@default_source
 
         # TODO merge_hash
         item_image = item_props['image']
@@ -137,16 +139,24 @@ module Jekyll
         puts
         puts "ORIG IMAGE: #{@image.inspect}"
 
-        src = @image['source'].strip
+        src = (@image['source'] || "").strip
         if !src || (src =~ /^(screenshot|this|page)$/)
+          SocialMeta::debug "Using screenshot as specified for "+item.url
           source_url = 'file://' + @source[:html]
 
         elsif item.content =~ /!\[.*?\]\(|<img.*?src=['"]/
+          SocialMeta::debug "Using largest image for "+item.url
           src = find_largest_image(item)
           source_url = preprocess_image(src)
 
-        else
+        elsif !src.empty?
+          SocialMeta::debug "Using specified image '#{src}' for "+item.url
           source_url = preprocess_image(src)
+        end
+
+        if !source_url && (default_source != "none")
+          SocialMeta::debug "Using screenshot as default for "+item.url
+          source_url = 'file://' + @source[:html]
         end
 
         puts
