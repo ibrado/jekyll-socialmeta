@@ -116,8 +116,6 @@ module Jekyll
         # TODO merge_hash
         item_image = item_props['image'] || {}
         @default_source = item_image['default'] || @@fallback_source
-        puts
-        puts "ITEM_IMAGE: #{item_image.inspect}"
 
         if !item_image
           img = {}
@@ -127,17 +125,8 @@ module Jekyll
           img = { 'source' => item_image }
         end
 
-        puts
-        puts "IMG: #{img.inspect}"
-
         image_props = (@@config['image'] || {}).merge(img)
-
-        puts
-        puts "IMAGE PROPS: #{image_props.inspect}"
-
         @image = @@base_image.merge(image_props)
-        puts
-        puts "ORIG IMAGE: #{@image.inspect}"
 
         src = (@image['source'] || "").strip
         if !src || (src =~ /^(screenshot|this|page)$/)
@@ -152,11 +141,9 @@ module Jekyll
         elsif !src.empty?
           SocialMeta::debug "Using specified image for "+item.url
           source_url = preprocess_image(src)
-          puts "GOT RETURN SRC URL = #{source_url}"
         end
 
         if !source_url
-          puts "DEFAULT SOURCE: #{@default_source}"
           if @default_source != "none"
             SocialMeta::debug "Using screenshot as default for "+item.url
             source_url = 'file://' + @source[:html]
@@ -168,11 +155,6 @@ module Jekyll
 
         @source_url = source_url
 
-        puts
-        puts "AFTER IMAGE: #{@image.inspect}"
-
-        # TODO build_params so screenshot can be adjusted before rendering
-        #      Need to expose source, w, h, vw, vh, top, left, scroll
         @params = @@base_params.map {
           |k,v| "--#{k}=#{v.to_s}"
         }
@@ -182,9 +164,6 @@ module Jekyll
         if @image['center']
           @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
         end
-
-        puts
-        puts "FINAL IMAGE: #{@image.inspect}"
 
         origin = "#{@image['top'].to_i},#{@image['left'].to_i}"
         dim = "#{@image['width'].to_i}x#{@image['height'].to_i}"
@@ -303,24 +282,16 @@ module Jekyll
         expected_width = actual_height / desired_ratio
 
         # Crop from center
-        if actual_height < actual_width
-          if height < actual_height
-            puts "TOP 1"
-            top += (actual_height - height) / 2
-          #else
-          #  puts "TOP 2"
-            #top += (630 - expected_height) / 2
-          end
+        if (actual_height < actual_width) && (height < actual_height)
+          top += (actual_height - height) / 2
         end
 
         if image['resize']
           if actual_height > actual_width
-            puts "R resize 1a"
             zoom *= (630.0 / actual_height)
             r_height = 630
             r_width = actual_width * zoom
           else
-            puts "R resize 1b"
             zoom *= (1200.0 / actual_width)
             r_height = actual_height * zoom
             r_width = 1200
@@ -341,13 +312,11 @@ module Jekyll
           r_width = width
 
           if actual_height < actual_width
-            puts "R noresize 2a"
             v_height = height * 2
             v_width = width * 2
             r_height = actual_height
 
           else
-            puts "R noresize 2b"
             r_height = height = actual_height
             width = expected_width
             v_height = height * 2
@@ -358,9 +327,6 @@ module Jekyll
 
         center_left = ((width - r_width) / 2) / zoom
         center_top = (top + (height - r_height) / 2) / zoom
-
-        puts "CL = (#{width.to_i} - #{r_width.to_i}) / 2 = #{center_left.to_i}"
-        puts "CT = (#{height.to_i} - #{r_height.to_i}) /2  = #{center_top.to_i}"
 
         image['top'] = top.to_i
         image['left'] = left.to_i
@@ -378,7 +344,6 @@ module Jekyll
         images_re = /\.(gif|jpe?g|png|tiff|bmp|ico|cur|psd|svg|webp)$/i
         if src && (src =~ images_re)
           # Local or remote image
-          puts "SRC: #{src}"
           if m = /^file:\/\/(.+)/.match(src)
             source_img = m[1]
             source_url = src
@@ -390,11 +355,8 @@ module Jekyll
             source_url = 'file://' + source_img
           end
 
-          puts "SOURCE IMAGE: #{source_img} SOURCE_URL: #{source_url}"
           # See what dimensions it has
-          size = FastImage.size(source_img)
-          puts "FASTIMAGE SIZE: #{size.inspect}"
-          if size
+          if size = FastImage.size(source_img)
             adjust_image(@image, size)
           else
             SocialMeta::warn "Unable to determine size of image"
@@ -402,7 +364,6 @@ module Jekyll
             source_url = nil
           end
 
-          puts "NEW IMAGE #{@image.inspect}"
         else
           source_url = src
         end
@@ -419,26 +380,22 @@ module Jekyll
         src_sizes = []
 
         item.content.scan(image_tag_re).each do |img|
-          puts "IMG: #{img.inspect}"
           src = (img[0] || img[1]).strip
-          puts "SAW IMAGE SRC #{src}"
 
           if m = /^file:\/\/(.+)$/.match(src)
             src = m[1]
+
           elsif src !~ /:\/\//
             if src =~ /^\//
-              print "FULL PATH #{src}"
               src = File.join(@@dest, src.split('/'))
-              puts " SRC=#{src}"
             else
               src = File.join(@@dest, item.url, src)
-              puts "ITEM URL: #{item.url} SRC=#{src}"
             end
+
           # else use remote source as-is
           end
 
           if size = FastImage.size(src)
-            puts "SIZE: #{size.inspect}"
             w = size.first
             h = size.last
             src_sizes << { :source => src,
@@ -450,14 +407,8 @@ module Jekyll
         end
 
         # Find largest by area
-
         largest = src_sizes.sort_by { |k,v| v }.last[:source]
-        puts "LARGEST IS #{largest}"
-        if largest =~ /^\//
-          "file://#{largest}"
-        else
-          largest
-        end
+        largest =~ /^\// ? "file://#{largest}" : largest
 
       end
 
