@@ -388,11 +388,12 @@ module Jekyll
           if size
             adjust_image(@image, size)
           else
-            SocialMeta::warn "Unable to determine size, results not optimized"
+            SocialMeta::warn "Unable to determine size of image, skipping"
+            SocialMeta::warn " Check network connection, and URL for typos."
+            source_url = nil
           end
 
           puts "NEW IMAGE #{@image.inspect}"
-          #puts "SIZE: #{size.inspect}"
         else
           source_url = src
         end
