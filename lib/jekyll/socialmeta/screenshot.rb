@@ -67,9 +67,9 @@ module Jekyll
           "scrollTop" => 0,
           "scrollLeft" => 0,
           "zoom" => 1
-        }.merge(config['crop'] || {})
+        }.merge(config['image'] || {})
 
-        @@default_source = config['default'];
+        @@fallback_source = config['default'];
       end
 
       def self.save_all
@@ -112,10 +112,10 @@ module Jekyll
         @url = "#{@@site_url}/#{inner_path}/#{@name}"
 
         item_props = item.data['socialmeta'] || {}
-        default_source = item_props['default'] || @@default_source
 
         # TODO merge_hash
-        item_image = item_props['image']
+        item_image = item_props['image'] || {}
+        @default_source = item_image['default'] || @@fallback_source
         puts
         puts "ITEM_IMAGE: #{item_image.inspect}"
 
@@ -150,14 +150,23 @@ module Jekyll
           source_url = preprocess_image(src)
 
         elsif !src.empty?
-          SocialMeta::debug "Using specified image '#{src}' for "+item.url
+          SocialMeta::debug "Using specified image for "+item.url
           source_url = preprocess_image(src)
+          puts "GOT RETURN SRC URL = #{source_url}"
         end
 
-        if !source_url && (default_source != "none")
-          SocialMeta::debug "Using screenshot as default for "+item.url
-          source_url = 'file://' + @source[:html]
+        if !source_url
+          puts "DEFAULT SOURCE: #{@default_source}"
+          if @default_source != "none"
+            SocialMeta::debug "Using screenshot as default for "+item.url
+            source_url = 'file://' + @source[:html]
+          else
+            SocialMeta::debug "No source URL for "+item.url
+            return
+          end
         end
+
+        @source_url = source_url
 
         puts
         puts "AFTER IMAGE: #{@image.inspect}"
@@ -197,20 +206,20 @@ module Jekyll
       end
 
       def render
+        if !@source_url
+          SocialMeta::debug "Render skipped: no source URL"
+          return false
+        end
+
         pj_start = Time.now
 
-        puts @params.inspect
-        ENV['hello'] = 'world'
-        ENV['site_base'] = 'file://'+@@source+'/'
-        puts "SITE BASE: #{ENV['site_base']}"
-
-        error = false
+        success = true
         Phantomjs.run(*@params) { |msg|
           pj_info = msg.split(' ',2)
 
           if pj_info.first == 'error'
             SocialMeta::error "Phantomjs: #{pj_info[1]}"
-            error = true
+            success = false
           elsif pj_info.first == 'debug'
             SocialMeta::debug "Phantomjs: #{pj_info[1]}"
           else
@@ -219,11 +228,11 @@ module Jekyll
         }
 
         pj_runtime = "%.3f" % (Time.now - pj_start).to_f
-        if !error
+        if success
           SocialMeta::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
         end
 
-        error
+        success
       end
 
       def activate
@@ -388,7 +397,7 @@ module Jekyll
           if size
             adjust_image(@image, size)
           else
-            SocialMeta::warn "Unable to determine size of image, skipping"
+            SocialMeta::warn "Unable to determine size of image"
             SocialMeta::warn " Check network connection, and URL for typos."
             source_url = nil
           end

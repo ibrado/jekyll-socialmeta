@@ -4,6 +4,8 @@ module Jekyll
   module SocialMeta
 
     class RenderQueue
+      attr_accessor :errors
+
       def initialize(site)
         @prerendered = []
         @render_queue = {}
@@ -29,7 +31,7 @@ module Jekyll
       def render
         # Copy prerendered
         @prerendered.each do |screenshot|
-          SocialMeta::debug "Prerendered #{screenshot.source[:url]}"
+          SocialMeta::debug "Reusing #{screenshot.source[:url]}"
           screenshot.activate
         end
 
@@ -37,6 +39,7 @@ module Jekyll
         rewrite_to_local(@render_queue)
 
         # Generate the screenshots
+        errors = 0
         @render_queue.each do |file, item|
           # Skip if e.g. it has an existing og:image
           url = item[:screenshot].source[:url]
@@ -45,9 +48,11 @@ module Jekyll
             SocialMeta::debug "Skipping #{url} (#{item[:skip]})"
           else
             SocialMeta::debug "Rendering #{url}"
-            item[:screenshot].render
+            errors += 1 if !item[:screenshot].render
           end
         end
+
+        @errors = errors
 
         @renamed.each do |file|
           File.rename("#{file.to_s}.jog-orig", file)

@@ -73,7 +73,9 @@ module Jekyll
       s = (prerendered == 1 ? '' : 's')
       self.info "#{prerendered} image#{s} reused" if prerendered > 0
 
-      self.info "Render time: #{runtime}s for #{count} URL(s)" if count > 0
+      errors = @screenshots.errors
+
+      self.info "Render time: #{runtime}s for #{count} URL(s), #{errors} error(s)" if count > 0
       total_run = "%.3f" % (runtime.to_f + @main_runtime.to_f)
       self.info "Total runtime: #{total_run}s"
 
