@@ -60,12 +60,12 @@ module Jekyll
         needs_rewrite = {}
 
         queue.each do |file, item|
-          next if File.extname(file) !~ /\.x?html?/
+          next if File.extname(file) !~ /\.(x?html?|css)/
 
           basedir = item[:base]
           content = File.read(file)
 
-          # Check if the file already has a og:image
+          # Check if the file already has a og:image hardcoded
           if content =~ /<meta.*?property="og:image".*?content=['"].*?.*?['"]/
             item[:skip] = "existing og:image"
             next
@@ -76,9 +76,9 @@ module Jekyll
             prefix = basedir + (relpath[0] == '/' ? '' : '/')
 
             abspath = prefix + relpath
-            content.gsub!(/['"]#{relpath}['"]/, "file://#{abspath}")
+            content.gsub!(/(['"\(])#{relpath}([\)'"])/, '\1'+"file://#{abspath}"+'\2')
 
-            if abspath =~ /\.(css|html?)$/i
+            if abspath =~ /\.(css|x?html?)$/i
               ref_orig = Pathname.new(abspath + '.jog-orig')
               if !ref_orig.exist?
                 ref_file = Pathname.new(abspath)
