@@ -54,6 +54,7 @@ module Jekyll
         }.merge(config['phantomjs'] || {})
 
         @@base_image = {
+          "enlarge" => true,
           "top" => 0,
           "left" => 0,
           "width" => 1200,
@@ -157,20 +158,15 @@ module Jekyll
         zoom = @image['zoom'].to_f
 
         scroll_top = @image['scrollTop'].to_i
-        if scroll_top > 0
-          @image['top'] = scroll_top * zoom
-        elsif scroll_top < 0
-          @image['style'] += " margin-top: #{(-scroll_top * zoom).to_i}px"
-        end
-        @image['viewHeight'] += scroll_top * zoom
+        @image['top'] += scroll_top
+        @image['viewHeight'] += scroll_top
 
         scroll_left = @image['scrollLeft'].to_i
-        if scroll_left > 0
-          @image['left'] = scroll_left * zoom
-        elsif scroll_left <  0
-          @image['style'] += " margin-left: #{(-scroll_left * zoom).to_i}px"
-        end
-        @image['viewWidth'] += scroll_left * zoom
+        @image['left'] += scroll_left
+        @image['viewWidth'] += scroll_left
+
+        #@image['style'] += " margin-left: #{(-scroll_left * zoom).to_i}px"
+        #@image['viewWidth'] += scroll_left * zoom
 
         # Some styling
         #item_props['style'] = 'background-color: white; ' + item_props['style'].to_s
@@ -282,6 +278,81 @@ module Jekyll
       end
 
       def adjust_image(image, size)
+        width = actual_width = size.first.to_f
+        height = actual_height = size.last.to_f
+
+        zoom = image['zoom']
+        top = image['top']
+        left = image['left']
+
+        puts "*** ORIG TOP: #{top}"
+
+          # Adjust to proper proportions
+        if image['enlarge']
+          # Calculate zoom, format for consistent output with non-enlarged (rounding)
+          factor = "%.8f" % (1200.0 / actual_width)
+          zoom *= factor.to_f
+          width = 1200
+          height = (actual_height * zoom).to_i
+
+          # Crop from center
+          if height < actual_height
+            top += (actual_height - height) / 2
+          elsif height > 630
+            top += (height - 630) / 2
+          end
+          puts "*** CROP TOP: #{top}"
+
+          top *= zoom
+          #left = (1200 - width) / 2
+          puts "*** ZOOM TOP: #{top}"
+
+          puts "***  HEIGHT: #{height.to_i} WIDTH: #{width.to_i} TOP: #{top}"
+
+          width = 1200
+          height = 630
+          v_width = 1200 * 2
+          v_height = 630 * 2
+          #v_width *= zoom
+          #v_height *= zoom
+
+        else
+          # The proportional height
+          height = (width * ( 630 / 1200.0)).to_i
+
+          # Crop from center
+          if height < actual_height
+            top += (actual_height - height) / 2
+          elsif height > 630
+            top += (height - 630) / 2
+          end
+ 
+          v_height = height * 2
+          v_width = width * 2
+
+        end
+
+        puts
+        puts "***  ZOOM: #{zoom}"
+        puts "***    AW: #{actual_width.to_i} AH: #{actual_height.to_i}"
+        puts "*** NEW W: #{width.to_i} NH: #{height.to_i}"
+        puts "***    VW: #{v_width.to_i} VH: #{v_height.to_i}"
+        puts "***   TOP: #{top.to_i}"
+        puts
+
+
+        image['top'] = top.to_i
+        image['left'] = left.to_i
+        image['width'] = width.to_i
+        image['height'] = height.to_i
+        image['viewWidth'] = v_width.to_i
+        image['viewHeight'] = v_height.to_i
+        image['zoom'] = "%.8f" % zoom
+        
+      end
+
+
+      def adjust_imagex(image, size)
         v_width = actual_width = size.first.to_f
         v_height = actual_height = size.last.to_f
 
@@ -328,32 +399,30 @@ module Jekyll
             v_width = 1200 / zoom
 
           end
-
-
         else
           if actual_height > actual_width
-            if actual_height < expected_height
-              puts "IN 4 - Tall, fill"
-              desired_height = (630 / 1200.0) * actual_width
-              top = (actual_height - desired_height) / 2
-              zoom *= (1200.0 / actual_width)
+            puts "IN 5 - Tall, fill"
+            ratio = 1200.0 / actual_width
+            zoom *= ratio
+            top = (630 - expected_height) / zoom
+            v_width = 1200 * 2
+            
+            if expected_height < 630
+              puts "Using vheight 630*2"
               v_height = 630 * 2
-              v_width = 1200 * 2
-
             else
-              puts "IN 5 - Really tall, fill"
-              height_ratio = 1200.0 / actual_width
-              zoom *= height_ratio
-              puts "ACTUAL HEIGHT #{actual_height}"
-              top = ((actual_height - 630 ) / 2) / zoom
+              puts "Using vheight 630/zoom"
               v_height = 630 / zoom
-              v_width = 1200 / zoom
             end
 
           else
-            puts "IN 6 - Default, fill"
-            zoom *= (630.0 / actual_height)
-            v_width = 1200  * 2
+            puts "IN 6 - Wide, fill"
+
+            desired_height = (630 / 1200.0) * actual_width
+            top = (actual_height - desired_height) / 2
+            zoom *= (1200.0 / actual_width)
+            v_height = 630 * 2
+            v_width = 1200 * 2
           end
 
           image['center'] = false;
