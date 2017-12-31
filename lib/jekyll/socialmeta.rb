@@ -60,7 +60,7 @@ module Jekyll
 
     def self.start_render
       @start_render = Time.now
-      self.info "Starting rendering.."
+      self.info "Starting rendering..."
     end
 
     def self.end_render
