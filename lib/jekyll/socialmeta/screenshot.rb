@@ -5,7 +5,7 @@ module Jekyll
     WORK_DIR ='.jekyll-socialmeta'.freeze
 
     class Screenshot
-      attr_reader :source, :url, :temp_path, :full_path, :live_path
+      attr_reader :source, :url, :urls, :temp_path, :full_path, :live_path
 
       def self.setup(site, config)
         @@config = config || {}
@@ -35,7 +35,7 @@ module Jekyll
         @@script = "#{pwd}/screenshot.js"
 
         site_url = site.config['url'] + site.config['baseurl']
-        @@site_url = "#{site_url}/#{images_path}"
+        @@site_url = "#{site_url}#{images_path}"
 
         @@base_params = {
           #'debug': true,
@@ -125,6 +125,9 @@ module Jekyll
           '00000000000000'
 
         @url = "#{@@site_url}/#{inner_path}/#{@name}"
+
+        @urls = {}
+        @urls[:opengraph] = timestamped(@url)
 
         item_props = item.data['socialmeta'] || {}
 
@@ -222,8 +225,22 @@ module Jekyll
         }
 
         pj_runtime = "%.3f" % (Time.now - pj_start).to_f
+
         if success
           @timestamp = Time.now.strftime('%Y%m%d%H%M%S')
+
+          # XXX
+          @urls[:opengraph] = timestamped(@url)
+
+          # Remove old images
+          Dir.glob(File.join(Pathname(@full_path).dirname, '/*')).each { |image|
+            File.delete(image)
+          }
+
+          Dir.glob(File.join(Pathname(@live_path).dirname, '/*')).each { |image|
+            File.delete(image)
+          }
+
           SocialMeta::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
         end
 
@@ -279,6 +296,11 @@ module Jekyll
         !valid?
       end
 
+      def copy_self(dest_dir)
+        copy(@temp_path, File.join(dest_dir, @path))
+      end
+
+      private
       def adjust_image(image, size)
         r_width = width = actual_width = size.first.to_f
         r_height = height = actual_height = size.last.to_f
@@ -317,7 +339,6 @@ module Jekyll
           width *= zoom
           height *= zoom
 
-
           width = 1200
           height = 630
 
@@ -355,6 +376,7 @@ module Jekyll
         image['zoom'] = "%.8f" % zoom
       end
 
+      private
       def preprocess_image(src)
         #((src !~ /^.*?:\/\//) || (src =~ /^file:\/\//) || )
         images_re = /\.(gif|jpe?g|png|tiff|bmp|ico|cur|psd|svg|webp)$/i
@@ -387,6 +409,7 @@ module Jekyll
         source_url
       end
 
+      private
       def find_largest_image(item)
         image_tag_re = /!\[.*?\]\((.*?)\)|<img.*?src=['"](.*?)['"]/i
 
@@ -428,10 +451,6 @@ module Jekyll
 
       end
 
-      def copy_self(dest_dir)
-        copy(@temp_path, File.join(dest_dir, @path))
-      end
-
       private
       def copy(src, dest)
         dest_path = Pathname(dest).dirname
@@ -439,8 +458,10 @@ module Jekyll
           FileUtils.mkdir_p dest_path
         end
 
-        ts_re = /^(.*?)-ts(\.[^\.]+)$/
-        dest.gsub!(ts_re, '\1-' + @timestamp  + '\2')
+        #ts_re = /^(.*?)-ts(\.[^\.]+)$/
+        #dest.gsub!(ts_re, '\1-' + @timestamp  + '\2')
+
+        dest = timestamped(dest)
 
         FileUtils.cp(src, dest)
       end

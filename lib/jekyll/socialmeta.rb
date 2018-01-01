@@ -1,27 +1,28 @@
 require "jekyll/socialmeta/version"
 require "jekyll/socialmeta/screenshot"
 require "jekyll/socialmeta/renderqueue"
+require "jekyll/socialmeta/tagger"
 require 'phantomjs'
 require 'fileutils'
 require 'uri'
 
 module Jekyll
   module SocialMeta
-    DATA_PROP = '_x_j_socialmeta'.freeze
-    FINAL_PROP = 'socialmeta'.freeze
+    #DATA_PROP = '_x_j_socialmeta'.freeze
+    #FINAL_PROP = 'socialmeta'.freeze
 
     # Allow {{ socialmeta.* }}
-    Jekyll::Hooks.register :pages, :pre_render do |page, payload|
-      if !page.data[DATA_PROP].nil?
-        payload[FINAL_PROP] = page.data.delete(DATA_PROP)
-      end
-    end
+    #Jekyll::Hooks.register :pages, :pre_render do |page, payload|
+    #  if !page.data[DATA_PROP].nil?
+    #    payload[FINAL_PROP] = page.data.delete(DATA_PROP)
+    #  end
+    #end
 
-    Jekyll::Hooks.register :documents, :pre_render do |doc, payload|
-       if !doc.data[DATA_PROP].nil?
-         payload[FINAL_PROP] = doc.data.delete(DATA_PROP)
-       end
-    end
+    #Jekyll::Hooks.register :documents, :pre_render do |doc, payload|
+    #   if !doc.data[DATA_PROP].nil?
+    #     payload[FINAL_PROP] = doc.data.delete(DATA_PROP)
+    #   end
+    #end
 
     # Generate screenshots
 
@@ -31,12 +32,16 @@ module Jekyll
         @screenshots.render
         self.end_render
       else
-        @screenshots.finalize
+        self.finalize
       end
     end
 
     def self.screenshots(site = nil)
       @screenshots ||= RenderQueue.new(site)
+    end
+
+    def self.tagger(site = nil)
+      @tagger ||= Tagger.new(site)
     end
 
     def self.debug_state(state = false)
@@ -65,15 +70,17 @@ module Jekyll
 
     def self.end_render
       count = @screenshots.length
-      prerendered = @screenshots.jobs - count
+      cached = @screenshots.cached
 
       if @screenshots.jobs > 0
         @screenshots.finalize
       end
 
+      @tagger.finalize
+
       runtime = "%.3f" % (Time.now - @start_render).to_f
-      s = (prerendered == 1 ? '' : 's')
-      self.info "#{prerendered} image#{s} reused" if prerendered > 0
+      s = (cached == 1 ? '' : 's')
+      self.info "#{cached} image#{s} reused" if cached > 0
 
       errors = @screenshots.errors
 
@@ -82,6 +89,11 @@ module Jekyll
       self.info "Total runtime: #{total_run}s"
 
       @screenshots.clear
+    end
+
+    def self.finalize
+      @screenshots.finalize
+      @tagger.finalize
     end
 
     def self.info(msg)
@@ -109,8 +121,11 @@ module Jekyll
         return unless pconfig["enabled"].nil? || sconfig["enabled"]
 
         SocialMeta::debug_state pconfig["debug"]
+
         SocialMeta::start_main
+
         SocialMeta::screenshots site
+        SocialMeta::tagger site
 
         if pconfig['collection'].is_a?(String)
           pconfig['collection'] = pconfig['collection'].split(/,\s*/)
@@ -157,31 +172,17 @@ module Jekyll
 
             screenshot = Screenshot.new(item)
 
-            site_url = (site.config['canonical'] || site.config['url']) + site.config['baseurl'] + item.url
-
-            meta =  %Q{  <meta property="jog:url" content="#{site_url}"/>\n} +
-                    %Q{  <meta property="jog:type" content="website"/>\n} +
-                    %Q{  <meta property="jog:title" content="#{item.data['title']}"/>\n} +
-                    %Q{  <meta property="jog:description" content="#{item.data['description'] || site.config['description']}"/>\n} +
-                    %Q{  <meta property="jog:image" content="#{screenshot.url}"/>\n}
-
-            item.data[DATA_PROP] = {
-              "hello" => "Hello,",
-              "world" => "World!",
-              "tags" => meta
-            }
-
             # Skip if source file is older than image
             if screenshot.is_valid?
-              SocialMeta::debug "Skipping #{item.url} (done)"
               stats[collection][:skipped] += 1
             else
               stats[collection][:render] += 1
             end
 
-            # Still enqueue because Jekyll may wipe out _site and
-            #  our dest_dirs
+            # Still enqueue (not activate) even if valid because Jekyll
+            #   may wipe out our dest_dirs if starting from scratch
             SocialMeta::screenshots.enqueue(screenshot)
+            SocialMeta::tagger.enqueue(item, screenshot)
           end
 
           if !stats[collection][:render].zero?

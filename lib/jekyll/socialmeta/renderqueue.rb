@@ -4,10 +4,10 @@ module Jekyll
   module SocialMeta
 
     class RenderQueue
-      attr_accessor :errors
+      attr_accessor :errors, :cached
 
       def initialize(site)
-        @prerendered = []
+        @cached = 0
         @render_queue = {}
         @renamed = []
 
@@ -15,41 +15,36 @@ module Jekyll
       end
 
       def enqueue(screenshot)
-        if screenshot.is_valid?
-          @prerendered << screenshot
-
-        else
-          # For use with rewrite_to_local
-          @render_queue[screenshot.source[:html]] = {
-            :url => screenshot.source[:url],
-            :base => screenshot.source[:base],
-            :screenshot => screenshot
-          }
-        end
+        @render_queue[screenshot.source[:html]] = {
+          :url => screenshot.source[:url],
+          :base => screenshot.source[:base],
+          :screenshot => screenshot
+        }
       end
 
       def render
-        # Copy prerendered
-        @prerendered.each do |screenshot|
-          SocialMeta::debug "Reusing #{screenshot.source[:url]}"
-          screenshot.activate
-        end
-
-        # Rewrite relative paths
-        rewrite_to_local(@render_queue)
-
         # Generate the screenshots
         errors = 0
-        @render_queue.each do |file, item|
-          # Skip if e.g. it has an existing og:image
-          url = item[:screenshot].source[:url]
 
-          if item[:skip]
-            SocialMeta::debug "Skipping #{url} (#{item[:skip]})"
+        @render_queue.each do |file, qitem|
+          screenshot = qitem[:screenshot] 
+
+          # Skip if e.g. it has an existing og:image
+          url = screenshot.source[:url]
+          file = screenshot.source[:html]
+
+          if screenshot.is_valid?
+            @cached += 1
+            screenshot.activate
+            SocialMeta::debug "Skipping #{url} (cached)"
           else
             SocialMeta::debug "Rendering #{url}"
-            errors += 1 if !item[:screenshot].render
+            # Rewrite relative paths
+            rewrite_to_local(file => qitem)
+            # Render image
+            errors += 1 if !screenshot.render
           end
+
         end
 
         @errors = errors
@@ -64,17 +59,17 @@ module Jekyll
         re = /(?:url\(|<(?:link|script|img)[^>]+(?:src|href)\s*=\s*)(?!['"]?(?:data|http|file))['"]?([^'"\)\s>]+)/i
         needs_rewrite = {}
 
-        queue.each do |file, item|
+        queue.each do |file, qitem|
           next if File.extname(file) !~ /\.(x?html?|css)/
 
-          basedir = item[:base]
+          basedir = qitem[:base]
           content = File.read(file)
 
           # Check if the file already has a og:image hardcoded
-          if content =~ /<meta.*?property="og:image".*?content=['"].*?.*?['"]/
-            item[:skip] = "existing og:image"
-            next
-          end
+          #if content =~ /<meta.*?property="og:image".*?content=['"].*?.*?['"]/
+          #  item[:skip] = "existing og:image"
+          #  next
+          #end
 
           content.scan(re).each do |local|
             relpath = local.first
@@ -108,18 +103,18 @@ module Jekyll
       end
 
       def jobs
-        @render_queue.length + @prerendered.length
+        length - @cached
       end
 
       def clear
         @renamed.clear
         @render_queue.clear
-        @prerendered.clear
+        @cached = 0
         Screenshot.clear
       end
 
       def finalize
-        if @render_queue.length > 0
+        if length > 0
           Screenshot.save_all
           Screenshot.activate_all
           #Screenshot.clean_all
