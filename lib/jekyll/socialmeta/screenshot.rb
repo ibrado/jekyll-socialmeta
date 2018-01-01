@@ -249,8 +249,8 @@ module Jekyll
           update_urls
 
           # Remove old images, replacements will be copied later
-          FileUtils.rm_f(File.join(@full_dir, '/*'));
-          FileUtils.rm_f(File.join(@live_dir, '/*'));
+          FileUtils.rm_f(Dir.glob(File.join(@full_dir, '/*')));
+          FileUtils.rm_f(Dir.glob(File.join(@live_dir, '/*')));
 
           SocialMeta::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
         end
