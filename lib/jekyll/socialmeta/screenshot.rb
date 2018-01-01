@@ -5,7 +5,7 @@ module Jekyll
     WORK_DIR ='.jekyll-socialmeta'.freeze
 
     class Screenshot
-      attr_reader :source, :url, :urls, :temp_path, :full_path, :live_path
+      attr_reader :source, :urls, :temp_path, :full_path, :live_path
 
       def self.setup(site, config)
         @@config = config || {}
@@ -37,6 +37,12 @@ module Jekyll
         site_url = site.config['url'] + site.config['baseurl']
         @@site_url = "#{site_url}#{images_path}"
 
+        @@images = {
+          :og => "og-ts.jpg",
+          :tcl => "tcl-ts.jpg",
+          :tcs => "tcs-ts.jpg"
+        }
+
         @@base_params = {
           #'debug': true,
           #'proxy-type': 'none',
@@ -54,9 +60,9 @@ module Jekyll
           "center" => false,
           "top" => 0,
           "left" => 0,
-          "width" => 1200,
+          "width" => 1260,
           "height" => 630,
-          "viewWidth" => 1200,
+          "viewWidth" => 1260,
           "viewHeight" => 630,
           "centerTop" => 0,
           "centerLeft" => 0,
@@ -69,7 +75,6 @@ module Jekyll
       end
 
       def self.save_all
-        #FileUtils.cp_r "#{@@temp_dir}/.", "#{@@source_dir}"
         # Copy and rename
         @@instances.each do |screenshot|
           screenshot.copy_self(@@source_dir)
@@ -92,6 +97,10 @@ module Jekyll
       def initialize(item)
         @@instances << self
 
+        # For possible override of format later
+        @images = @@images.dup
+        @urls = {}
+
         @source = {
           :url => item.url,
           :base => @@dest,
@@ -99,35 +108,32 @@ module Jekyll
           :html => item.destination('')
         }
 
-        # Will insert timestamp later, necessary to prevent FB from caching unupdated ones
-        # TODO: user-overridden formats
-        @name = 'og-ts.jpg' # XXX
-
         # Setup temp folder
         # e.g. 2017-12-28-my-test
-        inner_path = File.join(File.basename(item.path, File.extname(item.path)))
+        @inner_path = File.join(File.basename(item.path, File.extname(item.path)))
 
         # Create folders
-        FileUtils.mkdir_p File.join(@@temp_dir, inner_path)
-        FileUtils.mkdir_p File.join(@@source_dir, inner_path)
+        FileUtils.mkdir_p File.join(@@temp_dir, @inner_path)
+        FileUtils.mkdir_p File.join(@@source_dir, @inner_path)
+
+        # Will insert timestamp later, necessary to prevent FB from caching unupdated ones
 
         # e.g. 2017-12-28-my-test/og-ts.png
         # XXX
-        @path = File.join(inner_path, @name)
 
-        @temp_path = File.join(@@temp_dir, @path)
-        @full_path = File.join(@@source_dir, @path)
-        @live_path = File.join(@@dest_dir, @path)
+        @temp_dir = File.join(@@temp_dir, @inner_path, '')
+        @full_dir = File.join(@@source_dir, @inner_path, '')
+        @live_dir = File.join(@@dest_dir, @inner_path, '')
+
+        temp_path = File.join(@temp_dir, 'tcl-ts.jpg')
 
         # Save timestamp if available
         @timestamp = is_available? ?
-          File.mtime(@temp_path).strftime('%Y%m%d%H%M%S') :
-          '00000000000000'
+          File.mtime(temp_path).to_i.to_s : '0000000000'
 
-        @url = "#{@@site_url}/#{inner_path}/#{@name}"
+        @base_url = "#{@@site_url}/#{@inner_path}/"
 
-        @urls = {}
-        @urls[:opengraph] = timestamped(@url)
+        update_urls
 
         item_props = item.data['socialmeta'] || {}
 
@@ -191,7 +197,7 @@ module Jekyll
         @params += [
           @@script,
           source_url,
-          @temp_path,
+          @temp_dir,
           origin,
           dim,
           view_dim,
@@ -200,6 +206,12 @@ module Jekyll
           item_props['style'].to_s,
           @image['style'].to_s
         ]
+      end
+
+      def update_urls
+        @images.each { |k,v|
+          @urls[k] = timestamped(@base_url + v)
+        }
       end
 
       def render
@@ -211,7 +223,9 @@ module Jekyll
         pj_start = Time.now
 
         success = true
+        puts @params.inspect
         Phantomjs.run(*@params) { |msg|
+          msg.strip!
           pj_info = msg.split(' ',2)
 
           if pj_info.first == 'error'
@@ -219,6 +233,11 @@ module Jekyll
             success = false
           elsif pj_info.first == 'debug'
             SocialMeta::debug "Phantomjs: #{pj_info[1]}"
+          elsif pj_info.first == 'success'
+            SocialMeta::debug "Phantomjs: Timestamp: #{pj_info[1]}"
+            @timestamp = pj_info[1]
+            puts "TIMESTAMP: "+@timestamp.inspect
+
           else
             SocialMeta::debug "Phantomjs #{msg}"
           end
@@ -227,19 +246,11 @@ module Jekyll
         pj_runtime = "%.3f" % (Time.now - pj_start).to_f
 
         if success
-          @timestamp = Time.now.strftime('%Y%m%d%H%M%S')
+          update_urls
 
-          # XXX
-          @urls[:opengraph] = timestamped(@url)
-
-          # Remove old images
-          Dir.glob(File.join(Pathname(@full_path).dirname, '/*')).each { |image|
-            File.delete(image)
-          }
-
-          Dir.glob(File.join(Pathname(@live_path).dirname, '/*')).each { |image|
-            File.delete(image)
-          }
+          # Remove old images, replacements will be copied later
+          FileUtils.rm_f(File.join(@full_dir, '/*'));
+          FileUtils.rm_f(File.join(@live_dir, '/*'));
 
           SocialMeta::debug "Phantomjs: #{@source[:url]} done in #{pj_runtime}s"
         end
@@ -250,13 +261,13 @@ module Jekyll
       def activate
         if !is_saved?
           if is_available?
-            copy(@temp_path, timestamped(@full_path))
+            copy(@temp_dir, @full_dir)
           else
             save
           end
         end
 
-        copy(timestamped(@full_path), timestamped(@live_path))
+        copy(@full_dir, @live_dir)
       end
 
       def save
@@ -264,19 +275,31 @@ module Jekyll
           render
         end
 
-        copy(@temp_path, timestamped(@full_path))
+        copy(@temp_dir, @full_dir)
       end
 
       def is_available?
-        File.exist? @temp_path
+        available = true
+        @images.each { |k,v|
+          available &&= File.exist? File.join(@temp_dir, v)
+        }
+        available
       end
 
       def is_saved?
-        File.exist? timestamped(@full_path)
+        saved = true
+        @images.each { |k,v|
+          saved &&= File.exist? File.join(@full_dir, timestamped(v))
+        }
+        saved
       end
 
       def is_live?
-        File.exist? timestamped(@live_path)
+        live = true
+        @images.each { |k,v|
+          live &&= File.exist? File.join(@live_dir, timestamped(v))
+        }
+        live 
       end
 
       def is_rendered?
@@ -288,16 +311,27 @@ module Jekyll
       end
 
       def is_valid?
-        (is_saved? && (File.mtime(@source[:file]) <= File.mtime(timestamped(@full_path)))) ||
-          (is_available? && (File.mtime(@source[:file]) <= File.mtime(@temp_path)))
+        source_older_than?(@full_dir) || source_older_than?(@temp_dir)
       end
 
       def is_expired?
         !valid?
       end
 
+      def source_older_than?(image_dir)
+        src_mtime = File.mtime(@source[:file])
+        is_temp = (image_dir == @temp_dir)
+
+        older = true
+        @images.each do |k,v|
+          image = File.join(image_dir, (is_temp ? v : timestamped(v)))
+          older &&= File.exist?(image) && src_mtime < File.mtime(image)
+        end
+        older
+      end
+
       def copy_self(dest_dir)
-        copy(@temp_path, File.join(dest_dir, @path))
+        copy(@temp_dir, File.join(dest_dir, @inner_path))
       end
 
       private
@@ -312,7 +346,7 @@ module Jekyll
         center_left = 0
 
         # The proportional height
-        desired_ratio = 630 / 1200.0
+        desired_ratio = 630 / 1260.0
         height = (width * desired_ratio).to_i
 
         # Expected height given the width and vice-versa
@@ -330,19 +364,19 @@ module Jekyll
             r_height = 630
             r_width = actual_width * zoom
           else
-            zoom *= (1200.0 / actual_width)
+            zoom *= (1260.0 / actual_width)
             r_height = actual_height * zoom
-            r_width = 1200
+            r_width = 1260
           end
 
           top *= zoom
           width *= zoom
           height *= zoom
 
-          width = 1200
+          width = 1260
           height = 630
 
-          v_width = 1200 * 2
+          v_width = 1260 * 2
           v_height = 630 * 2
 
         else
@@ -453,17 +487,19 @@ module Jekyll
 
       private
       def copy(src, dest)
-        dest_path = Pathname(dest).dirname
-        if !File.exist?(dest_path)
-          FileUtils.mkdir_p dest_path
+        puts "COPY ORIG SRC=#{src} DEST=#{dest}"
+        # src and dest must be folders
+        if !File.exist?(dest)
+          FileUtils.mkdir_p dest
         end
 
-        #ts_re = /^(.*?)-ts(\.[^\.]+)$/
-        #dest.gsub!(ts_re, '\1-' + @timestamp  + '\2')
-
-        dest = timestamped(dest)
-
-        FileUtils.cp(src, dest)
+        @images.each do |k,v|
+          src_file = (src == @temp_dir ? v : timestamped(v))
+          dest_file = timestamped(v)
+          puts " --> COPYING #{File.join(src, src_file)} to #{File.join(dest, dest_file)}"
+          FileUtils.cp(File.join(src, src_file), 
+            File.join(dest, dest_file))
+        end
       end
 
       private

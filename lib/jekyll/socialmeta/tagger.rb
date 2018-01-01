@@ -36,7 +36,9 @@ module Jekyll
           file = screenshot.source[:html]
 
           # XXX
-          info[:og_image] = screenshot.urls[:opengraph]
+          info[:og] = screenshot.urls[:og]
+          info[:tcl] = screenshot.urls[:tcl]
+          info[:tcs] = screenshot.urls[:tcs]
 
           next if File.extname(file) !~ /\.x?html?/
 
@@ -60,7 +62,7 @@ module Jekyll
         %Q{<meta property="og:type" content="#{type}"/>\n} +
         %Q{<meta property="og:title" content="#{info[:title]}"/>\n} +
         %Q{<meta property="og:description" content="#{info[:desc]}"/>\n} +
-        %Q{<meta property="og:image" content="#{info[:og_image]}"/>\n}
+        %Q{<meta property="og:image" content="#{info[:og]}"/>\n}
       end
 
       def twittercard(info)
