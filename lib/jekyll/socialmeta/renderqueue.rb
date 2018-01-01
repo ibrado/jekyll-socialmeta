@@ -27,7 +27,7 @@ module Jekyll
         errors = 0
 
         @render_queue.each do |file, qitem|
-          screenshot = qitem[:screenshot] 
+          screenshot = qitem[:screenshot]
 
           # Skip if e.g. it has an existing og:image
           url = screenshot.source[:url]

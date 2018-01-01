@@ -157,13 +157,13 @@ module Jekyll
           SocialMeta::debug "Using screenshot as specified for "+item.url
           source_url = 'file://' + @source[:html]
 
+        elsif !src.empty?
+          SocialMeta::debug "Using specified image for "+item.url
+          source_url = preprocess_image(src)
+
         elsif item.content =~ /!\[.*?\]\(|<img.*?src=['"]/
           SocialMeta::debug "Using largest image for "+item.url
           src = find_largest_image(item)
-          source_url = preprocess_image(src)
-
-        elsif !src.empty?
-          SocialMeta::debug "Using specified image for "+item.url
           source_url = preprocess_image(src)
         end
 
@@ -223,7 +223,6 @@ module Jekyll
         pj_start = Time.now
 
         success = true
-        puts @params.inspect
         Phantomjs.run(*@params) { |msg|
           msg.strip!
           pj_info = msg.split(' ',2)
@@ -236,7 +235,6 @@ module Jekyll
           elsif pj_info.first == 'success'
             SocialMeta::debug "Phantomjs: Timestamp: #{pj_info[1]}"
             @timestamp = pj_info[1]
-            puts "TIMESTAMP: "+@timestamp.inspect
 
           else
             SocialMeta::debug "Phantomjs #{msg}"
@@ -299,7 +297,7 @@ module Jekyll
         @images.each { |k,v|
           live &&= File.exist? File.join(@live_dir, timestamped(v))
         }
-        live 
+        live
       end
 
       def is_rendered?
@@ -487,7 +485,6 @@ module Jekyll
 
       private
       def copy(src, dest)
-        puts "COPY ORIG SRC=#{src} DEST=#{dest}"
         # src and dest must be folders
         if !File.exist?(dest)
           FileUtils.mkdir_p dest
@@ -496,8 +493,7 @@ module Jekyll
         @images.each do |k,v|
           src_file = (src == @temp_dir ? v : timestamped(v))
           dest_file = timestamped(v)
-          puts " --> COPYING #{File.join(src, src_file)} to #{File.join(dest, dest_file)}"
-          FileUtils.cp(File.join(src, src_file), 
+          FileUtils.cp(File.join(src, src_file),
             File.join(dest, dest_file))
         end
       end
