@@ -97,8 +97,21 @@ module Jekyll
       def initialize(item)
         @@instances << self
 
+        config = @@config.merge(item.data['socialmeta'] || {})
+        tw_config = config['twitter'] || config['twittercard'] || {}
+
         # For possible override of format later
         @images = @@images.dup
+
+        puts "SELECTING OUTPUTS: #{tw_config}"
+        if tw_config['type'].nil? || tw_config['type'] == 'large'
+          puts "DELETING :tcs"
+          @images.delete(:tcs) 
+        else
+          puts "DELETING :tcl"
+          @images.delete(:tcl)
+        end
+
         @urls = {}
 
         @source = {
@@ -128,8 +141,7 @@ module Jekyll
         temp_path = File.join(@temp_dir, 'tcl-ts.jpg')
 
         # Save timestamp if available
-        @timestamp = is_available? ?
-          File.mtime(temp_path).to_i.to_s : '0000000000'
+        @timestamp = get_timestamp
 
         @base_url = "#{@@site_url}/#{@inner_path}/"
 
@@ -240,6 +252,8 @@ module Jekyll
 
         pj_start = Time.now
 
+        ENV['image_formats'] = @images.keys.join(',')
+
         success = true
         Phantomjs.run(*@params) { |msg|
           msg.strip!
@@ -348,6 +362,18 @@ module Jekyll
 
       def copy_self(dest_dir)
         copy(@temp_dir, File.join(dest_dir, @inner_path))
+      end
+
+      def get_timestamp
+        ts = '0000000000'
+        @images.each { |k,v|
+          image = File.join(@temp_dir, v)
+          if File.exist? image
+            ts = File.mtime(image).to_i.to_s
+            break
+          end
+        }
+        ts
       end
 
       private

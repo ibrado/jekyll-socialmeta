@@ -115,7 +115,7 @@ module Jekyll
         creator = tc_config['creator'] || tc_config['handle'] || tc_config['creator']
         site = tc_config['site'] || tc_config['creator'] || tc_config['handle']
 
-        if (tc_config['size'] || 'large') == 'large'
+        if (tc_config['type'] || 'large') == 'large'
           type = 'summary_large_image'
           image = info[:tcl]
         else
