@@ -8,18 +8,20 @@ module Jekyll
         @tag_queue = []
 
         @site = site
+        @site_name = site.config['name']
         @config = site.config['socialmeta'] || {}
         @site_desc = site.config['description'] || 'No description'
-        @site_url = site.config['url'] + site.config['baseurl']
+        @site_url = (site.config['canonical'] || site.config['url']) + site.config['baseurl']
       end
 
       def enqueue(item, screenshot)
+        mtime = File.mtime(screenshot.source[:file]).to_datetime.to_s
         info = {
           :title => item.data['title'] || 'Untitled',
           :desc => item.data['description'] || @site_desc,
           :url => @site_url + item.url,
-          :published => item.data['date'] ? item.data['date'].to_datetime.to_s : nil,
-          :modified => File.mtime(screenshot.source[:file]).to_datetime.to_s
+          :published => item.data['date'] ? item.data['date'].to_datetime.to_s : mtime,
+          :modified => mtime
         }
 
         @tag_queue << {
@@ -63,9 +65,11 @@ module Jekyll
         og_config = (@config['opengraph'] || @config['facebook'] || {}).
           merge(config['opengraph'] || config['facebook'] || {})
 
-        type = og_config['type'] || 'website';
+        type = og_config['type'] || 'website'
+        site_name = og_config['site_name'] || @site_name
 
-        tags = %Q{<meta property="og:url" content="#{info[:url]}"/>\n} +
+        tags = (site_name ? %Q{<meta property="og:site_name" content="#{site_name}"/>\n} : '' ) +
+          %Q{<meta property="og:url" content="#{info[:url]}"/>\n} +
           %Q{<meta property="og:type" content="#{type}"/>\n} +
           %Q{<meta property="og:title" content="#{info[:title]}"/>\n} +
           %Q{<meta property="og:description" content="#{info[:desc]}"/>\n} +
@@ -78,7 +82,7 @@ module Jekyll
 
         # All others
         og_config.each do |k,v|
-          if k !~ /^(type|title|description|image|url)/
+          if k !~ /^(type|title|description|image|url|site_name)\b/
             k = 'og:' + k if k !~ /:/
 
             if v == '$.published'
