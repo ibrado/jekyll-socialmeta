@@ -138,8 +138,8 @@ module Jekyll
         @inner_path = File.join(File.basename(item.path, File.extname(item.path)))
 
         # Create folders
+        FileUtils.mkdir_p File.join(@@temp_dir, @inner_path)
         # Note: copy will create them
-        #FileUtils.mkdir_p File.join(@@temp_dir, @inner_path)
         #FileUtils.mkdir_p File.join(@@source_dir, @inner_path)
 
         # e.g. 2017-12-28-my-test/og-ts.png
@@ -385,6 +385,66 @@ module Jekyll
 
       private
       def adjust_image(image, size)
+        actual_width = size.first.to_f
+        actual_height = size.last.to_f
+        
+        top = image['top']
+        left = image['left']
+        center_top = 0
+        center_left = 0
+
+        ratio_height = actual_width * 630 / 1260
+        ratio_width = actual_height * 1260 / 630
+
+        # Facebook minimum height is 315
+        if (actual_width / actual_height) > 630 / 1260 && ratio_height > 315
+          puts "SET 1 ratio_height #{ratio_height}"
+          top += (actual_height - ratio_height) / 2
+
+          # Render height/width, for centering
+          r_width = actual_width
+          r_height = ratio_height
+
+          width = actual_width
+          height = ratio_height
+
+          v_width = actual_width
+          v_height = [actual_height, ratio_height].max
+        else
+          puts "SET 2"
+
+          r_height = actual_height
+          r_width = ratio_width
+
+          height = actual_height
+          width = ratio_width
+
+          v_height = actual_height
+          #v_width = ratio_width
+          v_width = [actual_width, ratio_width].max
+        end
+
+
+        center_top = 0
+        center_left = 0
+        zoom = 1
+
+        image['top'] = top.to_i
+        image['left'] = left.to_i
+        image['width'] = width.to_i
+        image['height'] = height.to_i
+        image['centerTop'] = center_top.to_i
+        image['centerLeft'] = center_left.to_i
+        image['viewWidth'] = v_width.to_i
+        image['viewHeight'] = v_height.to_i
+        image['zoom'] = "%.8f" % zoom
+ 
+
+          
+      end
+
+      private
+      def adjust_imagex(image, size)
         r_width = width = actual_width = size.first.to_f
         r_height = height = actual_height = size.last.to_f
 
