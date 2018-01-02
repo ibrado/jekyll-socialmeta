@@ -37,23 +37,12 @@ module Jekyll
         site_url = site.config['url'] + site.config['baseurl']
         @@site_url = "#{site_url}#{images_path}"
 
+        @@images_re = /\.(gif|jpe?g|png|tiff|bmp|ico|cur|psd|svg|webp)$/i
         @@images = {
           :og => "og-ts.jpg",
           :tcl => "tcl-ts.jpg",
           :tcs => "tcs-ts.jpg"
         }
-
-        @@base_params = {
-          #'debug': true,
-          #'proxy-type': 'none',
-          'web-security': false,
-          'ssl-protocol': 'tlsv1',
-          #'ssl-protocol': 'any',
-          'ignore-ssl-errors': true,
-          'local-to-remote-url-access': true,
-          'disk-cache': true,
-          'disk-cache-path': @@cache_dir
-        }.merge(config['phantomjs'] || {})
 
         @@base_image = {
           "resize" => true,
@@ -70,6 +59,18 @@ module Jekyll
           "scrollLeft" => 0,
           "zoom" => 1
         }.merge(config['image'] || {})
+
+        @@base_params = {
+          #'debug': true,
+          #'proxy-type': 'none',
+          'web-security': false,
+          'ssl-protocol': 'tlsv1',
+          #'ssl-protocol': 'any',
+          'ignore-ssl-errors': true,
+          'local-to-remote-url-access': true,
+          'disk-cache': true,
+          'disk-cache-path': @@cache_dir
+        }.merge(config['phantomjs'] || {})
 
         @@fallback_source = config['default'];
       end
@@ -117,7 +118,7 @@ module Jekyll
         @images = @@images.dup
 
         if tw_config['type'].nil? || tw_config['type'] == 'large'
-          @images.delete(:tcs) 
+          @images.delete(:tcs)
         else
           @images.delete(:tcl)
         end
@@ -160,26 +161,18 @@ module Jekyll
           @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
         end
 
-        # Use instance vars so we can override as necessary
-        @size = "#{@image['width']}x#{@image['height']}"
-        @origin = "#{@image['top'].to_i},#{@image['left'].to_i}"
-        @view_size = "#{@image['viewWidth'].to_i}x#{@image['viewHeight'].to_i}"
-        @scroll = "#{@image['scrollTop'].to_i},#{@image['scrollLeft'].to_i}"
-        @zoom = @image['zoom'].to_s
-        @bg_style = item_props['style'].to_s
-        @img_style = @image['style'].to_s
-
-        @site_snap = false
+        @page_snap = false
 
         src = (@image['source'] || "").strip
         if !src || (src =~ /^(screenshot|this|page)$/)
           SocialMeta::debug "Using screenshot as specified for "+item.url
-          @site_snap = true
+          @page_snap = true
           source_url = 'file://' + @source[:html]
 
         elsif !src.empty?
           SocialMeta::debug "Using specified image for "+item.url
           source_url = preprocess_image(src)
+          @page_snap = (source_url !~ @@images_re)
 
         elsif item.content =~ /!\[.*?\]\(|<img.*?src=['"]/
           SocialMeta::debug "Using largest image for "+item.url
@@ -190,7 +183,7 @@ module Jekyll
         if !source_url
           if @default_source != "none"
             SocialMeta::debug "Using screenshot as default for "+item.url
-            @site_snap = true
+            @page_snap = true
             source_url = 'file://' + @source[:html]
           else
             SocialMeta::debug "No source URL for "+item.url
@@ -199,6 +192,15 @@ module Jekyll
         end
 
         @source_url = source_url
+
+        # Use instance vars so we can override as necessary
+        @size = "#{@image['width']}x#{@image['height']}"
+        @origin = "#{@image['top'].to_i},#{@image['left'].to_i}"
+        @view_size = "#{@image['viewWidth'].to_i}x#{@image['viewHeight'].to_i}"
+        @scroll = "#{@image['scrollTop'].to_i},#{@image['scrollLeft'].to_i}"
+        @zoom = @image['zoom'].to_s
+        @bg_style = item_props['style'].to_s
+        @img_style = @image['style'].to_s
 
         update_params
       end
@@ -232,6 +234,8 @@ module Jekyll
           |k,v| "--#{k}=#{v.to_s}"
         }
 
+        # TODO: Maybe just use ENV for (most of) these?
+
         @params += [
           @@script,
           @source_url,
@@ -255,7 +259,7 @@ module Jekyll
         pj_start = Time.now
 
         ENV['image_formats'] = @images.keys.join(',')
-        ENV['site_snap'] = @site_snap ? '1' : '0'
+        ENV['page_snap'] = @page_snap ? '1' : '0'
 
         success = true
         Phantomjs.run(*@params) { |msg|
@@ -458,8 +462,7 @@ module Jekyll
       private
       def preprocess_image(src)
         #((src !~ /^.*?:\/\//) || (src =~ /^file:\/\//) || )
-        images_re = /\.(gif|jpe?g|png|tiff|bmp|ico|cur|psd|svg|webp)$/i
-        if src && (src =~ images_re)
+        if src && (src =~ @@images_re)
           # Local or remote image
           if m = /^file:\/\/(.+)/.match(src)
             source_img = m[1]
