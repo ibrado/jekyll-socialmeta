@@ -16,12 +16,16 @@ module Jekyll
 
       def enqueue(item, screenshot)
         mtime = File.mtime(screenshot.source[:file]).to_datetime.to_s
+        tags = [ item.data['tag'], item.data['tags'] ].flatten.compact.uniq
+        cats = [ item.data['category'], item.data['categories'] ].flatten.compact.uniq
+
         info = {
           :title => item.data['title'] || 'Untitled',
           :desc => item.data['description'] || @site_desc,
           :url => @site_url + item.url,
-          :published => item.data['date'] ? item.data['date'].to_datetime.to_s : mtime,
-          :modified => mtime
+          :data => item.data || {},
+          'published' => item.data['date'] ? item.data['date'].to_datetime.to_s : mtime,
+          'modified' => mtime,
         }
 
         @tag_queue << {
@@ -83,15 +87,18 @@ module Jekyll
         # All others
         og_config.each do |k,v|
           if k !~ /^(type|title|description|image|url|site_name)\b/
-            k = 'og:' + k if k !~ /:/
+            props = get_properties(info, k, v)
+            puts "GOT PROPS #{props.inspect}"
 
-            if v == '$.published'
-              v = info[:published]
-            elsif v == '$.modified'
-              v = info[:modified]
-            end
-
-            tags += %Q{<meta property="#{k}" content="#{v}"/>\n} if v
+            # Support arrayes and hashes
+            props.each { |p|
+              p.each { |k1, v1|
+                k1 = 'og:' + k1 if k1 !~ /:/
+                [ v1 ].flatten.each { |v2|
+                  tags += %Q{<meta property="#{k1}" content="#{v2}"/>\n} if v2
+                }
+              }
+            }
           end
         end
 
@@ -133,6 +140,36 @@ module Jekyll
         tags = twittercard(config, info) + opengraph(config, info)
         indent = ' ' * (@config['indent'] || 0)
         tags.gsub!(/^/, indent)
+      end
+
+      private
+      def get_properties(info, k, v)
+        vals = []
+
+        if v.is_a?(String)
+          if m = /\$\.(\S*?)\[?(\d*)\]?$/.match(v)
+            v = info[m[1]] || info[:data][m[1]]
+            i = m[2]
+            puts "SAW m[1]=#{m[1]} v=#{v} i=#{i}"
+
+            if !i.empty? && (v.is_a?(Array))
+              v = v[i.to_i]
+              puts "SET V TO #{v} i=#{i} info[#{m[1]}]"
+            end
+          end
+          vals << { k => v }
+
+        elsif v.is_a?(Hash)
+          v.each { |k1, v1|
+            puts
+            puts ">>> GETTING VALUE FOR #{k+':'+k1}: #{v1.inspect}"
+            vals << get_properties(info, k+':'+k1, v1)
+          }
+        end
+
+        puts "RETURN VALS: #{vals.flatten.inspect}"
+        vals.flatten
+
       end
 
     end
