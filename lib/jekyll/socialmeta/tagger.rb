@@ -61,14 +61,29 @@ module Jekyll
         type = og_config['type'] || 'website';
         app_id = og_config['app_id'] || og_config['fb_app_id'];
 
-        %Q{<meta property="og:url" content="#{info[:url]}"/>\n} +
-        %Q{<meta property="og:type" content="#{type}"/>\n} +
-        %Q{<meta property="og:title" content="#{info[:title]}"/>\n} +
-        %Q{<meta property="og:description" content="#{info[:desc]}"/>\n} +
-        %Q{<meta property="og:image" content="#{info[:og]}"/>\n} +
-        %Q{<meta property="og:image:width" content="#{info[:sizes][:og][:width]}"/>\n} +
-        %Q{<meta property="og:image:height" content="#{info[:sizes][:og][:height]}"/>\n} +
-        (app_id ? %Q{<meta property="fb:app_id" content="#{app_id}"/>\n} : '')
+        tags = %Q{<meta property="og:url" content="#{info[:url]}"/>\n} +
+          %Q{<meta property="og:type" content="#{type}"/>\n} +
+          %Q{<meta property="og:title" content="#{info[:title]}"/>\n} +
+          %Q{<meta property="og:description" content="#{info[:desc]}"/>\n} +
+          %Q{<meta property="og:image" content="#{info[:og]}"/>\n} +
+          %Q{<meta property="og:image:width" content="#{info[:sizes][:og][:width]}"/>\n} +
+          %Q{<meta property="og:image:height" content="#{info[:sizes][:og][:height]}"/>\n} +
+          (app_id ? %Q{<meta property="fb:app_id" content="#{app_id}"/>\n} : '')
+
+        # All others
+        og_config.each do |k,v|
+          if k !~ /^(fb[_:]app_id|type|title|description|image)$/
+            if k =~ /:/
+              custom_k = k
+            else
+              custom_k = 'og:' + k
+            end
+            tags += %Q{<meta property="#{custom_k}" content="#{v}"/>\n}
+          end
+        end
+
+        tags
+
       end
 
       def twittercard(config, info)
