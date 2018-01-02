@@ -99,59 +99,8 @@ module Jekyll
 
         config = @@config.merge(item.data['socialmeta'] || {})
         tw_config = config['twitter'] || config['twittercard'] || {}
-
-        # For possible override of format later
-        @images = @@images.dup
-
-        puts "SELECTING OUTPUTS: #{tw_config}"
-        if tw_config['type'].nil? || tw_config['type'] == 'large'
-          puts "DELETING :tcs"
-          @images.delete(:tcs) 
-        else
-          puts "DELETING :tcl"
-          @images.delete(:tcl)
-        end
-
-        @urls = {}
-
-        @source = {
-          :url => item.url,
-          :base => @@dest,
-          :file => item.path,
-          :html => item.destination('')
-        }
-
-        # Setup temp folder
-        # e.g. 2017-12-28-my-test
-        @inner_path = File.join(File.basename(item.path, File.extname(item.path)))
-
-        # Create folders
-        FileUtils.mkdir_p File.join(@@temp_dir, @inner_path)
-        FileUtils.mkdir_p File.join(@@source_dir, @inner_path)
-
-        # Will insert timestamp later, necessary to prevent FB from caching unupdated ones
-
-        # e.g. 2017-12-28-my-test/og-ts.png
-        # XXX
-
-        @temp_dir = File.join(@@temp_dir, @inner_path, '')
-        @full_dir = File.join(@@source_dir, @inner_path, '')
-        @live_dir = File.join(@@dest_dir, @inner_path, '')
-
-        temp_path = File.join(@temp_dir, 'tcl-ts.jpg')
-
-        # Save timestamp if available
-        @timestamp = get_timestamp
-
-        @base_url = "#{@@site_url}/#{@inner_path}/"
-
-        update_urls
-
         item_props = item.data['socialmeta'] || {}
-
-        # TODO merge_hash
         item_image = item_props['image'] || {}
-        @default_source = item_image['default'] || @@fallback_source
 
         if !item_image
           img = {}
@@ -164,9 +113,68 @@ module Jekyll
         image_props = (@@config['image'] || {}).merge(img)
         @image = @@base_image.merge(image_props)
 
+        # TODO: possibly override format/quality later
+        @images = @@images.dup
+
+        if tw_config['type'].nil? || tw_config['type'] == 'large'
+          @images.delete(:tcs) 
+        else
+          @images.delete(:tcl)
+        end
+
+        @urls = {}
+
+        @source = {
+          :url => item.url,
+          :base => @@dest,
+          :file => item.path,
+          :html => item.destination('')
+        }
+
+        @default_source = item_image['default'] || @@fallback_source
+        # Setup temp folder
+        # e.g. 2017-12-28-my-test
+        @inner_path = File.join(File.basename(item.path, File.extname(item.path)))
+
+        # Create folders
+        # Note: copy will create them
+        #FileUtils.mkdir_p File.join(@@temp_dir, @inner_path)
+        #FileUtils.mkdir_p File.join(@@source_dir, @inner_path)
+
+        # e.g. 2017-12-28-my-test/og-ts.png
+        # XXX
+
+        @temp_dir = File.join(@@temp_dir, @inner_path, '')
+        @full_dir = File.join(@@source_dir, @inner_path, '')
+        @live_dir = File.join(@@dest_dir, @inner_path, '')
+
+        @base_url = "#{@@site_url}/#{@inner_path}/"
+
+        # Save timestamp if available and update URLs with it
+        @timestamp = get_timestamp
+        update_urls
+
+        # Some styling
+
+        if @image['center'] && !is_page_capture
+          @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
+        end
+
+        # Use instance vars so we can override as necessary
+        @size = "#{@image['width']}x#{@image['height']}"
+        @origin = "#{@image['top'].to_i},#{@image['left'].to_i}"
+        @view_size = "#{@image['viewWidth'].to_i}x#{@image['viewHeight'].to_i}"
+        @scroll = "#{@image['scrollTop'].to_i},#{@image['scrollLeft'].to_i}"
+        @zoom = @image['zoom'].to_s
+        @bg_style = item_props['style'].to_s
+        @img_style = @image['style'].to_s
+
+        @site_snap = false
+
         src = (@image['source'] || "").strip
         if !src || (src =~ /^(screenshot|this|page)$/)
           SocialMeta::debug "Using screenshot as specified for "+item.url
+          @site_snap = true
           source_url = 'file://' + @source[:html]
 
         elsif !src.empty?
@@ -182,6 +190,7 @@ module Jekyll
         if !source_url
           if @default_source != "none"
             SocialMeta::debug "Using screenshot as default for "+item.url
+            @site_snap = true
             source_url = 'file://' + @source[:html]
           else
             SocialMeta::debug "No source URL for "+item.url
@@ -191,23 +200,18 @@ module Jekyll
 
         @source_url = source_url
 
-        @params = @@base_params.map {
-          |k,v| "--#{k}=#{v.to_s}"
+        update_params
+      end
+
+      def update_urls
+        @images.each { |k,v|
+          @urls[k] = timestamped(@base_url + v)
         }
+      end
 
-        # Some styling
-
-        if @image['center']
-          @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
-        end
-
+      def update_params
         width = @image['width'].to_i
         height = @image['height'].to_i
-        size = "#{width}x#{height}"
-
-        origin = "#{@image['top'].to_i},#{@image['left'].to_i}"
-        view_size = "#{@image['viewWidth'].to_i}x#{@image['viewHeight'].to_i}"
-        scroll = "#{@image['scrollTop'].to_i},#{@image['scrollLeft'].to_i}"
 
         @sizes = {
           :og => {
@@ -224,24 +228,22 @@ module Jekyll
           }
         }
 
+        @params = @@base_params.map {
+          |k,v| "--#{k}=#{v.to_s}"
+        }
+
         @params += [
           @@script,
-          source_url,
+          @source_url,
           @temp_dir,
-          origin,
-          size,
-          view_size,
-          scroll,
-          @image['zoom'].to_s,
-          item_props['style'].to_s,
-          @image['style'].to_s
+          @origin,
+          @size,
+          @view_size,
+          @scroll,
+          @zoom,
+          @bg_style,
+          @img_style
         ]
-      end
-
-      def update_urls
-        @images.each { |k,v|
-          @urls[k] = timestamped(@base_url + v)
-        }
       end
 
       def render
@@ -253,6 +255,7 @@ module Jekyll
         pj_start = Time.now
 
         ENV['image_formats'] = @images.keys.join(',')
+        ENV['site_snap'] = @site_snap ? '1' : '0'
 
         success = true
         Phantomjs.run(*@params) { |msg|
