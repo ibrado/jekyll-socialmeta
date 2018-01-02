@@ -56,7 +56,11 @@ module Jekyll
           content = File.read(file)
           tags = metatags(config, info)
 
-          content.gsub!(/(<head.*?>#{$/}*)/, '\1' + tags)
+          if content =~ /<\/title.*?>/
+            content.gsub!(/(<\/title.*?>#{$/}*)/, '\1' + tags)
+          else
+            content.gsub!(/(<head.*?>#{$/}*)/, '\1' + tags)
+          end
 
           File.write(file, content)
         end
@@ -83,12 +87,10 @@ module Jekyll
 
         tags += %Q{<meta property="og:image:alt" content="#{info[:alt]}"/>\n} if info[:alt]
 
-
         # All others
         og_config.each do |k,v|
           if k !~ /^(type|title|description|image|url|site_name)\b/
             props = get_properties(info, k, v)
-            puts "GOT PROPS #{props.inspect}"
 
             # Support arrayes and hashes
             props.each { |p|
@@ -122,16 +124,35 @@ module Jekyll
         end
 
         if creator
-          %Q{<meta name="twitter:card" content="#{type}"/>\n} +
-          %Q{<meta name="twitter:site" content="#{site}"/>\n} +
-          %Q{<meta name="twitter:creator" content="#{creator}"/>\n} +
-          (tc_config['force'] ? %Q{<meta name="twitter:title" content="#{info[:title]}"/>\n} : '') +
-          (tc_config['force'] ? %Q{<meta name="twitter:description" content="#{info[:desc]}"/>\n} : '') +
-          %Q{<meta name="twitter:image" content="#{image}"/>\n} +
-          (tc_config['alt'] ? %Q{<meta name="twitter:image:alt" content="#{tc_config['alt']}"/>\n} : '')
+          tags = %Q{<meta name="twitter:card" content="#{type}"/>\n} +
+            %Q{<meta name="twitter:site" content="#{site}"/>\n} +
+            %Q{<meta name="twitter:creator" content="#{creator}"/>\n} +
+            (tc_config['force'] ? %Q{<meta name="twitter:title" content="#{info[:title]}"/>\n} : '') +
+            (tc_config['force'] ? %Q{<meta name="twitter:description" content="#{info[:desc]}"/>\n} : '') +
+            %Q{<meta name="twitter:image" content="#{image}"/>\n} +
+            (tc_config['alt'] ? %Q{<meta name="twitter:image:alt" content="#{tc_config['alt']}"/>\n} : '')
+
+          # All others
+          tc_config.each do |k,v|
+            if k !~ /^(card|site|creator|title|description|image|force)\b/
+              props = get_properties(info, k, v, 'twitter')
+
+              # Support arrayes and hashes
+              props.each { |p|
+                p.each { |k1, v1|
+                  k1 = 'twitter:' + k1 if k1 !~ /:/
+                  [ v1 ].flatten.each { |v2|
+                    tags += %Q{<meta name="#{k1}" content="#{v2}"/>\n} if v2
+                  }
+                }
+              }
+            end
+          end
+
+          tags
 
         else
-          SocialMeta::warn "No Twitter Card creator specified -- no TC meta tags generated"
+          SocialMeta::warn_once "No Twitter Card creator specified -- no TC meta tags generated"
           ""
         end
       end
@@ -143,31 +164,44 @@ module Jekyll
       end
 
       private
-      def get_properties(info, k, v)
+      def get_properties(info, k, v, previous = nil)
         vals = []
 
-        if v.is_a?(String)
+        if !v.is_a?(Hash) && !v.is_a?(Array)
+          v = v.to_s
           if m = /\$\.(\S*?)\[?(\d*)\]?$/.match(v)
             v = info[m[1]] || info[:data][m[1]]
             i = m[2]
-            puts "SAW m[1]=#{m[1]} v=#{v} i=#{i}"
 
             if !i.empty? && (v.is_a?(Array))
               v = v[i.to_i]
-              puts "SET V TO #{v} i=#{i} info[#{m[1]}]"
             end
           end
-          vals << { k => v }
+
+          if previous
+            if k == '$'
+              vals << { "#{previous}" => v }
+            else
+              vals << { "#{previous}:#{k}" => v }
+            end
+          else
+            vals << { k => v }
+          end
 
         elsif v.is_a?(Hash)
           v.each { |k1, v1|
-            puts
-            puts ">>> GETTING VALUE FOR #{k+':'+k1}: #{v1.inspect}"
-            vals << get_properties(info, k+':'+k1, v1)
+            if (k1 == '$')
+              if previous
+                vals << { "#{previous}:#{k}" => v1 }
+              else
+                vals << get_properties(info, k1, v1, k)
+              end
+            else
+              vals << get_properties(info, "#{k}:#{k1}", v1, previous)
+            end
           }
         end
 
-        puts "RETURN VALS: #{vals.flatten.inspect}"
         vals.flatten
 
       end
