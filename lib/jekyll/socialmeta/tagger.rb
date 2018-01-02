@@ -37,6 +37,7 @@ module Jekyll
           info[:og] = screenshot.urls[:og]
           info[:tcl] = screenshot.urls[:tcl]
           info[:tcs] = screenshot.urls[:tcs]
+          info[:sizes] = screenshot.sizes
 
           file = screenshot.source[:html]
           next if File.extname(file) !~ /\.x?html?/
@@ -58,13 +59,16 @@ module Jekyll
           merge(@config['opengraph'] || @config['facebook'] || {})
 
         type = og_config['type'] || 'website';
+        app_id = og_config['app_id'] || og_config['fb_app_id'];
 
         %Q{<meta property="og:url" content="#{info[:url]}"/>\n} +
         %Q{<meta property="og:type" content="#{type}"/>\n} +
         %Q{<meta property="og:title" content="#{info[:title]}"/>\n} +
         %Q{<meta property="og:description" content="#{info[:desc]}"/>\n} +
         %Q{<meta property="og:image" content="#{info[:og]}"/>\n} +
-        (og_config['fb_app_id'] ? %Q{<meta property="fb:app_id" content="#{og_config['fb_app_id']}"/>\n} : '')
+        %Q{<meta property="og:image:width" content="#{info[:sizes][:og][:width]}"/>\n} +
+        %Q{<meta property="og:image:height" content="#{info[:sizes][:og][:height]}"/>\n} +
+        (app_id ? %Q{<meta property="fb:app_id" content="#{app_id}"/>\n} : '')
       end
 
       def twittercard(config, info)

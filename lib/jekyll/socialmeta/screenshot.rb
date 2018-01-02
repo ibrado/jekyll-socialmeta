@@ -5,7 +5,7 @@ module Jekyll
     WORK_DIR ='.jekyll-socialmeta'.freeze
 
     class Screenshot
-      attr_reader :source, :urls, :temp_path, :full_path, :live_path
+      attr_reader :source, :urls, :sizes
 
       def self.setup(site, config)
         @@config = config || {}
@@ -189,18 +189,36 @@ module Jekyll
           @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
         end
 
+        width = @image['width'].to_i
+        height = @image['height'].to_i
+        size = "#{width}x#{height}"
+
         origin = "#{@image['top'].to_i},#{@image['left'].to_i}"
-        dim = "#{@image['width'].to_i}x#{@image['height'].to_i}"
-        view_dim = "#{@image['viewWidth'].to_i}x#{@image['viewHeight'].to_i}"
+        view_size = "#{@image['viewWidth'].to_i}x#{@image['viewHeight'].to_i}"
         scroll = "#{@image['scrollTop'].to_i},#{@image['scrollLeft'].to_i}"
+
+        @sizes = {
+          :og => {
+            :width => (width / 1.05).to_i,
+            :height => height
+          },
+          :tcl => {
+            :width => width,
+            :height => height
+          },
+          :tcs => {
+            :width => height,
+            :height => height
+          }
+        }
 
         @params += [
           @@script,
           source_url,
           @temp_dir,
           origin,
-          dim,
-          view_dim,
+          size,
+          view_size,
           scroll,
           @image['zoom'].to_s,
           item_props['style'].to_s,
