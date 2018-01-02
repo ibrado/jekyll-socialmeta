@@ -167,26 +167,8 @@ module Jekyll
       def get_properties(info, k, v, previous = nil)
         vals = []
 
-        if !v.is_a?(Hash) && !v.is_a?(Array)
-          v = v.to_s
-          if m = /\$\.(\S*?)\[?(\d*)\]?$/.match(v)
-            v = info[m[1]] || info[:data][m[1]]
-            i = m[2]
-
-            if !i.empty? && (v.is_a?(Array))
-              v = v[i.to_i]
-            end
-          end
-
-          if previous
-            if k == '$'
-              vals << { "#{previous}" => v }
-            else
-              vals << { "#{previous}:#{k}" => v }
-            end
-          else
-            vals << { k => v }
-          end
+        if v.is_a?(Array)
+          vals << { k => v }
 
         elsif v.is_a?(Hash)
           v.each { |k1, v1|
@@ -200,6 +182,27 @@ module Jekyll
               vals << get_properties(info, "#{k}:#{k1}", v1, previous)
             end
           }
+
+        else
+          v = v.to_s
+          if m = /\$\.(\S*?)\[?(\d*)\]?$/.match(v)
+            v = info[m[1]] || info[:data][m[1]]
+            i = m[2]
+
+            if !i.empty? && (v.is_a?(Array))
+              v = v[i.to_i]
+            end
+          end
+          if previous
+            if k == '$'
+              vals << { "#{previous}" => v }
+            else
+              vals << { "#{previous}:#{k}" => v }
+            end
+          else
+            vals << { k => v }
+          end
+
         end
 
         vals.flatten
