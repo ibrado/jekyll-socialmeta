@@ -492,43 +492,61 @@ module Jekyll
       end
 
       private
-      def find_largest_image(item)
-        image_tag_re = /!\[.*?\]\((.*?)\)|<img.*?src=['"](.*?)['"]/i
+      def get_image_size(img, item)
+        # Could be a match result
+        src = (img[1] || img[0]).strip
 
-        # Find all the images
+        if m = /^file:\/\/(.+)$/.match(src)
+          src = m[1]
+
+        elsif src !~ /:\/\//
+          if src =~ /^\//
+            src = File.join(@@dest, src.split('/'))
+          else
+            src = File.join(@@dest, item.url, src)
+          end
+
+        # else use remote source as-is
+        end
+
+        if size = FastImage.size(src)
+          w = size.first
+          h = size.last
+          { :source => src,
+            #:height => h,
+            #:width => w,
+            :area => w*h
+          }
+        else
+          nil
+        end
+      end
+
+      private
+      def find_largest_image(item)
 
         src = ""
         src_sizes = []
+        # Find all the non-referenced images
 
+        image_tag_re = /!\[.*?\]\((.*?)\)|<img.*?src=['"](.*?)['"]/i
         item.content.scan(image_tag_re).each do |img|
-          src = (img[0] || img[1]).strip
+          size = get_image_size(img, item)
+          src_sizes << size if size
+        end
 
-          if m = /^file:\/\/(.+)$/.match(src)
-            src = m[1]
-
-          elsif src !~ /:\/\//
-            if src =~ /^\//
-              src = File.join(@@dest, src.split('/'))
-            else
-              src = File.join(@@dest, item.url, src)
-            end
-
-          # else use remote source as-is
-          end
-
-          if size = FastImage.size(src)
-            w = size.first
-            h = size.last
-            src_sizes << { :source => src,
-              #:height => h,
-              #:width => w,
-              :area => w*h
-            }
+        image_ref_re = /!\[(.*?)\][^\(]/
+        item.content.scan(image_ref_re).each do |r|
+          ref = r[0]
+          if img = item.content.match(/\[#{ref}\]:\s+(\S+)/)
+            size = get_image_size(img, item)
+            src_sizes << size if size
           end
         end
 
+        sorted = src_sizes.sort_by { |k| k[:area] };
         # Find largest by area
-        largest = src_sizes.sort_by { |k,v| v }.last[:source]
+        largest = src_sizes.sort_by { |k| k[:area] }.last[:source]
         largest =~ /^\// ? "file://#{largest}" : largest
 
       end
