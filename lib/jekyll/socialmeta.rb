@@ -104,6 +104,14 @@ module Jekyll
       Jekyll.logger.warn "SocialMeta:", msg
     end
 
+    def self.warn_once(msg)
+      @warned ||= {}
+      if !@warned[msg]
+        Jekyll.logger.warn "SocialMeta:", msg
+        @warned[msg] = 1
+      end
+    end
+
     def self.debug(msg)
       Jekyll.logger.warn "SocialMeta:", msg if @debug
     end
