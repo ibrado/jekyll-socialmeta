@@ -134,7 +134,7 @@ module Jekyll
 
           # All others
           tc_config.each do |k,v|
-            if k !~ /^(card|site|creator|title|description|image|force)\b/
+            if k !~ /^(card|site|creator|handle|title|description|image|force)\b/
               props = get_properties(info, k, v, 'twitter')
 
               # Support arrayes and hashes
@@ -161,6 +161,10 @@ module Jekyll
         tags = twittercard(config, info) + opengraph(config, info)
         indent = ' ' * (@config['indent'] || 0)
         tags.gsub!(/^/, indent)
+        if !@config['linebreaks'].nil? && !@config['linebreaks']
+          tags.gsub!(/\n/, '')
+        end
+        tags
       end
 
       private
