@@ -155,12 +155,6 @@ module Jekyll
         @timestamp = get_timestamp
         update_urls
 
-        # Some styling
-
-        if @image['center'] && !is_page_capture
-          @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
-        end
-
         @page_snap = false
 
         src = (@image['source'] || "").strip
@@ -192,6 +186,13 @@ module Jekyll
         end
 
         @source_url = source_url
+
+        # Some styling
+
+        if @image['center'] && !@page_snap
+          @image['style'] = "margin-top: #{@image['centerTop']}px; margin-left: #{@image['centerLeft']}px; "+@image['style'].to_s
+        end
+
 
         # Use instance vars so we can override as necessary
         @size = "#{@image['width']}x#{@image['height']}"
@@ -387,18 +388,17 @@ module Jekyll
       def adjust_image(image, size)
         actual_width = size.first.to_f
         actual_height = size.last.to_f
-        
+
         top = image['top']
         left = image['left']
-        center_top = 0
-        center_left = 0
+        zoom =  image['zoom']
 
-        ratio_height = actual_width * 630 / 1260
-        ratio_width = actual_height * 1260 / 630
+        ratio = @@base_image['width'].to_i / @@base_image['height'].to_i
+        ratio_width = actual_height * ratio
+        ratio_height = actual_width / ratio
 
         # Facebook minimum height is 315
-        if (actual_width / actual_height) > 630 / 1260 && ratio_height > 315
-          puts "SET 1 ratio_height #{ratio_height}"
+        if ratio_height >= 315
           top += (actual_height - ratio_height) / 2
 
           # Render height/width, for centering
@@ -410,103 +410,39 @@ module Jekyll
 
           v_width = actual_width
           v_height = [actual_height, ratio_height].max
-        else
-          puts "SET 2"
 
+        else
           r_height = actual_height
-          r_width = ratio_width
+          r_width = actual_width
 
           height = actual_height
           width = ratio_width
 
           v_height = actual_height
-          #v_width = ratio_width
           v_width = [actual_width, ratio_width].max
         end
 
-
-        center_top = 0
-        center_left = 0
-        zoom = 1
-
-        image['top'] = top.to_i
-        image['left'] = left.to_i
-        image['width'] = width.to_i
-        image['height'] = height.to_i
-        image['centerTop'] = center_top.to_i
-        image['centerLeft'] = center_left.to_i
-        image['viewWidth'] = v_width.to_i
-        image['viewHeight'] = v_height.to_i
-        image['zoom'] = "%.8f" % zoom
- 
-
-          
-      end
-
-      private
-      def adjust_imagex(image, size)
-        r_width = width = actual_width = size.first.to_f
-        r_height = height = actual_height = size.last.to_f
-
-        zoom = image['zoom']
-        top = image['top']
-        left = image['left']
         center_top = 0
         center_left = 0
 
-        # The proportional height
-        desired_ratio = 630 / 1260.0
-        height = (width * desired_ratio).to_i
-
-        # Expected height given the width and vice-versa
-        expected_height = actual_width * desired_ratio
-        expected_width = actual_height / desired_ratio
-
-        # Crop from center
-        if (actual_height < actual_width) && (height < actual_height)
-          top += (actual_height - height) / 2
+        if image['center']
+          # Only one of these will actually take effect;
+          #   the other will be 0 since either width or height will be kept
+          center_top = (height - r_height) / 2
+          center_left = (width - r_width) / 2
         end
 
         if image['resize']
-          if actual_height > actual_width
-            zoom *= (630.0 / actual_height)
-            r_height = 630
-            r_width = actual_width * zoom
-          else
-            zoom *= (1260.0 / actual_width)
-            r_height = actual_height * zoom
-            r_width = 1260
-          end
-
-          top *= zoom
-          width *= zoom
+          zoom *= @@base_image['width'] / width
           height *= zoom
+          width *= zoom
+          top *= zoom
 
-          width = 1260
-          height = 630
-
-          v_width = 1260 * 2
-          v_height = 630 * 2
-
-        else
-          r_width = width
-
-          if actual_height < actual_width
-            v_height = height * 2
-            v_width = width * 2
-            r_height = actual_height
-
-          else
-            r_height = height = actual_height
-            width = expected_width
-            v_height = height * 2
-            v_width = width * 2
-          end
-
+          # The * 2 is to give the viewport "breathing space"
+          #  so it doesn't distort the image
+          v_height = [@@base_image['height'], actual_height].max * 2
+          v_width = @@base_image['width']
         end
-
-        center_left = ((width - r_width) / 2) / zoom
-        center_top = (top + (height - r_height) / 2) / zoom
 
         image['top'] = top.to_i
         image['left'] = left.to_i
