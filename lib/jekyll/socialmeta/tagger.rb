@@ -25,7 +25,7 @@ module Jekyll
           :url => @site_url + item.url,
           :data => item.data || {},
           'published' => item.data['date'] ? item.data['date'].to_datetime.to_s : mtime,
-          'modified' => mtime,
+          'modified' => mtime
         }
 
         @tag_queue << {
@@ -53,21 +53,26 @@ module Jekyll
           file = screenshot.source[:html]
           next if File.extname(file) !~ /\.x?html?/
 
-          content = File.read(file)
           tags = metatags(config, info)
 
-          if content =~ /<\/title.*?>/
-            content.gsub!(/(<\/title.*?>#{$/}*)/, '\1' + tags)
-          else
-            content.gsub!(/(<head.*?>#{$/}*)/, '\1' + tags)
-          end
+          # Empty if socialmeta:tags = false
+          if !tags.empty?
+            content = File.read(file)
+            if content =~ /<\/title.*?>/
+              content.gsub!(/(<\/title.*?>#{$/}*)/, '\1' + tags)
+            else
+              content.gsub!(/(<head.*?>#{$/}*)/, '\1' + tags)
+            end
 
-          File.write(file, content)
+            File.write(file, content)
+          end
         end
 
         @tag_queue.clear
 
       end
+
+      # TODO: Refactor
 
       def opengraph(config, info)
         og_config = (@config['opengraph'] || @config['facebook'] || {}).
@@ -75,6 +80,9 @@ module Jekyll
 
         type = og_config['type'] || 'website'
         site_name = og_config['site_name'] || @site_name
+
+        fb_id = (@site.config['facebook'] || {})['app_id'] ||
+          @site.config['facebook_app_id'] || og_config['fb:app_id']
 
         tags = (site_name ? %Q{<meta property="og:site_name" content="#{site_name}"/>\n} : '' ) +
           %Q{<meta property="og:url" content="#{info[:url]}"/>\n} +
@@ -86,10 +94,11 @@ module Jekyll
           %Q{<meta property="og:image:height" content="#{info[:sizes][:og][:height]}"/>\n}
 
         tags += %Q{<meta property="og:image:alt" content="#{info[:alt]}"/>\n} if info[:alt]
+        tags += %Q{<meta property="fb:app_id" content="#{fb_id}"/>\n} if fb_id
 
         # All others
         og_config.each do |k,v|
-          if k !~ /^(type|title|description|image|url|site_name)\b/
+          if k !~ /^(type|title|description|image|url|site_name|fb:app_id)\b/
             props = get_properties(info, k, v)
 
             # Support arrayes and hashes
@@ -112,8 +121,10 @@ module Jekyll
         tc_config = (@config['twittercard'] || @config['twitter'] || {}).
           merge(config['twittercard'] || config['twitter'] || {})
 
-        creator = tc_config['creator'] || tc_config['handle'] || tc_config['creator']
-        site = tc_config['site'] || tc_config['creator'] || tc_config['handle']
+        site_twitter = (@site.config['twitter'] || {})['username']
+        site_twitter = '@' + site_twitter if site_twitter[0] != '@'
+        creator = tc_config['creator'] || tc_config['handle'] || site_twitter
+        site = tc_config['site'] || creator
 
         if (tc_config['type'] || 'large') == 'large'
           type = 'summary_large_image'
@@ -158,13 +169,25 @@ module Jekyll
       end
 
       def metatags(config, info)
-        tags = twittercard(config, info) + opengraph(config, info)
-        indent = ' ' * (@config['indent'] || 0)
-        tags.gsub!(/^/, indent)
-        if !@config['linebreaks'].nil? && !@config['linebreaks']
-          tags.gsub!(/\n/, '')
+        final_config = @config.merge(config)
+
+        if final_config['tags'].nil? || final_config['tags']
+          tags = twittercard(config, info) + opengraph(config, info)
+
+          if final_config['indent']
+            indent = ' ' * final_config['indent']
+            tags.gsub!(/^/, indent)
+          end
+
+          if !final_config['linebreaks'].nil? && !final_config['linebreaks']
+            tags.gsub!(/\n/, '')
+          end
+
+          tags
+
+        else
+          ''
         end
-        tags
       end
 
       private

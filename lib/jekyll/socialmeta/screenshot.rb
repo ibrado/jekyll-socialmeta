@@ -84,7 +84,10 @@ module Jekyll
       end
 
       def self.activate_all
-        FileUtils.cp_r "#{@@source_dir}/.", "#{@@dest_dir}"
+        # Copy and possibly rename
+        @@instances.each do |screenshot|
+          screenshot.copy_self(@@dest_dir)
+        end
       end
 
       def self.clean_all
@@ -99,16 +102,18 @@ module Jekyll
         @@instances << self
 
         config = @@config.merge(item.data['socialmeta'] || {})
+
         tw_config = config['twitter'] || config['twittercard'] || {}
         item_props = item.data['socialmeta'] || {}
-        item_image = item_props['image'] || {}
+        item_sm_image = item_props['image'] || {}
+        @item_image = item.data['image']
 
-        if !item_image
+        if !item_sm_image
           img = {}
-        elsif item_image.is_a?(Hash)
-          img = item_image
+        elsif item_sm_image.is_a?(Hash)
+          img = item_sm_image
         else
-          img = { 'source' => item_image }
+          img = { 'source' => item_sm_image }
         end
 
         image_props = (@@config['image'] || {}).merge(img)
@@ -132,24 +137,20 @@ module Jekyll
           :html => item.destination('')
         }
 
-        @default_source = item_image['default'] || @@fallback_source
+        @default_source = item_sm_image['default'] || @@fallback_source
         # Setup temp folder
         # e.g. 2017-12-28-my-test
         @inner_path = File.join(File.basename(item.path, File.extname(item.path)))
+        @base_url = "#{@@site_url}/#{@inner_path}/"
 
         # Create folders
         FileUtils.mkdir_p File.join(@@temp_dir, @inner_path)
-        # Note: copy will create them
-        #FileUtils.mkdir_p File.join(@@source_dir, @inner_path)
-
-        # e.g. 2017-12-28-my-test/og-ts.png
-        # XXX
 
         @temp_dir = File.join(@@temp_dir, @inner_path, '')
         @full_dir = File.join(@@source_dir, @inner_path, '')
         @live_dir = File.join(@@dest_dir, @inner_path, '')
 
-        @base_url = "#{@@site_url}/#{@inner_path}/"
+        @item_dir = File.join(@@dest, Pathname(@item_image).dirname, '') if @item_image
 
         # Save timestamp if available and update URLs with it
         @timestamp = get_timestamp
@@ -549,6 +550,11 @@ module Jekyll
 
       private
       def copy(src, dest)
+        dest = File.join(dest, '')
+        if @item_image && (dest == @live_dir)
+          dest = @item_dir
+        end
+
         # src and dest must be folders
         if !File.exist?(dest)
           FileUtils.mkdir_p dest
@@ -556,10 +562,16 @@ module Jekyll
 
         @images.each do |k,v|
           src_file = (src == @temp_dir ? v : timestamped(v))
-          dest_file = timestamped(v)
+          dest_file = item_image_name(dest) || timestamped(v)
+
           FileUtils.cp(File.join(src, src_file),
             File.join(dest, dest_file))
         end
+      end
+
+      private
+      def item_image_name(dest)
+        File.basename(@item_image) if @item_image && (dest == @item_dir)
       end
 
       private
